@@ -14,7 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
-import { activarRuta, actualizarEstadoParada, cargarRutaHoy } from '../lib/ruta'
+import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta } from '../lib/ruta'
 
 const ANCHO = Dimensions.get('window').width - 48
 
@@ -111,6 +111,21 @@ export default function RutaScreen({ navigation }) {
     setRefresco(false)
   }
 
+  async function onCompletarRuta() {
+    if (!ruta) return
+    setAccionando('completar')
+    setError(null)
+    try {
+      await completarRuta(ruta.id)
+      await registrarEvento('ruta_completada', {}, { conductorId: conductor.id, rutaId: ruta.id })
+      setRuta((r) => ({ ...r, estado: 'completada' }))
+    } catch (e) {
+      setError(e?.message ?? String(e))
+    } finally {
+      setAccionando(null)
+    }
+  }
+
   function abrirNavegacion(lat, lng, nombre) {
     Alert.alert(`Navegar a ${nombre}`, '¿Con qué app?', [
       {
@@ -135,9 +150,11 @@ export default function RutaScreen({ navigation }) {
     )
   }
 
-  const entregadas = paradas.filter((p) => p.estado === 'entregado').length
-  const total      = paradas.length
-  const barraAncho = total > 0 ? Math.round((entregadas / total) * ANCHO) : 0
+  const entregadas  = paradas.filter((p) => p.estado === 'entregado').length
+  const total       = paradas.length
+  const cerradas    = paradas.filter((p) => p.estado === 'entregado' || p.estado === 'fallido').length
+  const todasCerradas = total > 0 && cerradas === total
+  const barraAncho  = total > 0 ? Math.round((entregadas / total) * ANCHO) : 0
 
   return (
     <ScrollView
@@ -208,6 +225,17 @@ export default function RutaScreen({ navigation }) {
         </View>
       ) : null}
 
+      {/* ── JORNADA COMPLETADA ── */}
+      {ruta?.estado === 'completada' ? (
+        <View style={s.completada}>
+          <Text style={s.completadaIcono}>🎉</Text>
+          <Text style={s.completadaTit}>¡Jornada completada!</Text>
+          <Text style={s.completadaNota}>
+            {entregadas} de {total} entregas exitosas. Buen trabajo.
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── PROGRESO (solo en_ruta) ── */}
       {ruta?.estado === 'en_ruta' ? (
         <View style={s.bloque}>
@@ -217,6 +245,19 @@ export default function RutaScreen({ navigation }) {
           <Text style={s.progresoTxt}>
             {entregadas} de {total} entregas completadas
           </Text>
+          {todasCerradas ? (
+            <TouchableOpacity
+              style={[s.btnCompletar, accionando === 'completar' && s.btnDisabled]}
+              onPress={onCompletarRuta}
+              disabled={!!accionando}
+            >
+              {accionando === 'completar' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={s.btnCompletarTxt}>✅ Finalizar jornada</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 
@@ -354,7 +395,14 @@ const s = StyleSheet.create({
 
   barraContenedor: { height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 },
   barraRelleno:    { height: 8, backgroundColor: '#22c55e', borderRadius: 4 },
-  progresoTxt:     { fontSize: 13, color: '#374151' },
+  progresoTxt:     { fontSize: 13, color: '#374151', marginBottom: 8 },
+  btnCompletar:    { backgroundColor: '#16a34a', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 4 },
+  btnCompletarTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  completada:      { alignItems: 'center', paddingVertical: 40 },
+  completadaIcono: { fontSize: 52, marginBottom: 12 },
+  completadaTit:   { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8 },
+  completadaNota:  { fontSize: 14, color: '#6b7280', textAlign: 'center' },
 
   parada:         { borderRadius: 10, padding: 14, marginBottom: 10 },
   paradaFila:     { flexDirection: 'row', gap: 12 },
