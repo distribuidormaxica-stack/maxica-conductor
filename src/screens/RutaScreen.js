@@ -64,7 +64,7 @@ export default function RutaScreen({ navigation }) {
   // GPS: encender cuando la ruta está activa, apagar en cualquier otro estado
   useEffect(() => {
     if (ruta?.estado === 'en_ruta' && conductor) {
-      iniciarTracking(conductor.id)
+      iniciarTracking(conductor.id, ruta.id)
         .then((sub) => { trackingRef.current = sub; setGpsActivo(true) })
         .catch((e) => { console.warn('[RutaScreen] GPS:', e?.message); setGpsActivo(false) })
     } else {
