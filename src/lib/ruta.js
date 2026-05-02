@@ -9,7 +9,7 @@ export async function cargarRutaHoy(conductorId) {
     .select('*')
     .eq('conductor_id', conductorId)
     .eq('fecha', hoy)
-    .in('estado', ['pendiente', 'en_ruta'])
+    .in('estado', ['pendiente', 'en_ruta', 'completada'])
     .maybeSingle()
 
   if (eR) throw eR
