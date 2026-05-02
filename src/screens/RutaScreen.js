@@ -19,20 +19,29 @@ import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta } fro
 const ANCHO = Dimensions.get('window').width - 48
 
 const ESTADO = {
-  pendiente: { label: 'Pendiente', fondo: '#f3f4f6', texto: '#374151', icono: '⏳' },
-  en_sitio:  { label: 'En sitio',  fondo: '#dbeafe', texto: '#1e40af', icono: '📍' },
-  entregado: { label: 'Entregado', fondo: '#d1fae5', texto: '#065f46', icono: '✅' },
-  fallido:   { label: 'Fallido',   fondo: '#fee2e2', texto: '#991b1b', icono: '❌' },
+  pendiente:    { label: 'Pendiente',     fondo: '#f3f4f6', texto: '#374151', icono: '⏳' },
+  en_sitio:     { label: 'En sitio',      fondo: '#dbeafe', texto: '#1e40af', icono: '📍' },
+  entregado:    { label: 'Entregado',     fondo: '#d1fae5', texto: '#065f46', icono: '✅' },
+  fallido:      { label: 'No entregado',  fondo: '#fee2e2', texto: '#991b1b', icono: '❌' },
+}
+
+function formatearTiempo(seg) {
+  const m = Math.floor(seg / 60)
+  const s = seg % 60
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`
+  return `${m}m ${String(s).padStart(2, '0')}s`
 }
 
 export default function RutaScreen({ navigation }) {
   const { conductor, cerrarSesion } = useAuth()
-  const [ruta, setRuta]         = useState(null)
-  const [paradas, setParadas]   = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [refresco, setRefresco] = useState(false)
-  const [error, setError]       = useState(null)
+  const [ruta, setRuta]             = useState(null)
+  const [paradas, setParadas]       = useState([])
+  const [cargando, setCargando]     = useState(true)
+  const [refresco, setRefresco]     = useState(false)
+  const [error, setError]           = useState(null)
   const [accionando, setAccionando] = useState(null)
+  const [gpsActivo, setGpsActivo]   = useState(false)
+  const [tiemposEnSitio, setTiemposEnSitio] = useState({})
   const trackingRef = useRef(null)
 
   const cargar = useCallback(async () => {
@@ -56,17 +65,34 @@ export default function RutaScreen({ navigation }) {
   useEffect(() => {
     if (ruta?.estado === 'en_ruta' && conductor) {
       iniciarTracking(conductor.id)
-        .then((sub) => { trackingRef.current = sub })
-        .catch((e) => console.warn('[RutaScreen] GPS:', e?.message))
+        .then((sub) => { trackingRef.current = sub; setGpsActivo(true) })
+        .catch((e) => { console.warn('[RutaScreen] GPS:', e?.message); setGpsActivo(false) })
     } else {
       detenerTracking(trackingRef.current)
       trackingRef.current = null
+      setGpsActivo(false)
     }
     return () => {
       detenerTracking(trackingRef.current)
       trackingRef.current = null
     }
   }, [ruta?.estado, conductor])
+
+  // Temporizador de tiempo en sitio
+  useEffect(() => {
+    const enSitio = paradas.filter((p) => p.estado === 'en_sitio' && p.ts_llegada)
+    if (enSitio.length === 0) return
+    const interval = setInterval(() => {
+      setTiemposEnSitio((prev) => {
+        const nuevo = { ...prev }
+        for (const p of enSitio) {
+          nuevo[p.id] = Math.round((Date.now() - new Date(p.ts_llegada).getTime()) / 1000)
+        }
+        return nuevo
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [paradas])
 
   async function onIniciarRuta() {
     if (!ruta) return
@@ -176,8 +202,11 @@ export default function RutaScreen({ navigation }) {
         </View>
         <View style={s.cabeceraDer}>
           {ruta?.estado === 'en_ruta' && (
-            <View style={s.gpsChip}>
-              <Text style={s.gpsTxt}>● GPS</Text>
+            <View style={[s.gpsChip, !gpsActivo && s.gpsChipInactivo]}>
+              <View style={[s.gpsPunto, !gpsActivo && s.gpsPuntoInactivo]} />
+              <Text style={[s.gpsTxt, !gpsActivo && s.gpsTxtInactivo]}>
+                {gpsActivo ? 'GPS activo' : 'Sin GPS'}
+              </Text>
             </View>
           )}
           <TouchableOpacity onPress={() => navigation.navigate('Debug')}>
@@ -303,6 +332,21 @@ export default function RutaScreen({ navigation }) {
                         {meta.icono} {meta.label}
                       </Text>
                     </View>
+                    {/* Timer activo mientras está en sitio */}
+                    {parada.estado === 'en_sitio' && tiemposEnSitio[parada.id] != null ? (
+                      <Text style={s.timerTxt}>
+                        ⏱ {formatearTiempo(tiemposEnSitio[parada.id])} en sitio
+                      </Text>
+                    ) : null}
+                    {/* Duración del servicio ya completado */}
+                    {(parada.estado === 'entregado' || parada.estado === 'fallido') &&
+                      parada.ts_llegada && parada.ts_completada ? (
+                      <Text style={s.duracionTxt}>
+                        Servicio: {formatearTiempo(Math.round(
+                          (new Date(parada.ts_completada) - new Date(parada.ts_llegada)) / 1000
+                        ))}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -343,7 +387,7 @@ export default function RutaScreen({ navigation }) {
                       {enProceso ? (
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
-                        <Text style={s.btnAccionTxt}>❌ No pudo</Text>
+                        <Text style={s.btnAccionTxt}>❌ No entregado</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -370,10 +414,14 @@ const s = StyleSheet.create({
   cabecera:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   saludo:      { fontSize: 22, fontWeight: '700', color: '#111827' },
   fechaTxt:    { fontSize: 13, color: '#6b7280', marginTop: 2, textTransform: 'capitalize' },
-  cabeceraDer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  gpsChip:     { backgroundColor: '#d1fae5', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
-  gpsTxt:      { fontSize: 11, fontWeight: '700', color: '#065f46' },
-  btnDebug:    { fontSize: 22 },
+  cabeceraDer:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gpsChip:         { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#d1fae5', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  gpsChipInactivo: { backgroundColor: '#fee2e2' },
+  gpsPunto:        { width: 7, height: 7, borderRadius: 4, backgroundColor: '#16a34a' },
+  gpsPuntoInactivo:{ backgroundColor: '#dc2626' },
+  gpsTxt:          { fontSize: 12, fontWeight: '700', color: '#065f46' },
+  gpsTxtInactivo:  { color: '#991b1b' },
+  btnDebug:        { fontSize: 22 },
 
   errorBox: { backgroundColor: '#fee2e2', borderRadius: 8, padding: 12, marginBottom: 12 },
   errorTxt: { color: '#991b1b', fontSize: 13 },
@@ -424,4 +472,7 @@ const s = StyleSheet.create({
 
   btnCerrar:    { alignItems: 'center', marginTop: 8 },
   btnCerrarTxt: { color: '#9ca3af', fontSize: 13 },
+
+  timerTxt:    { fontSize: 12, color: '#2563eb', fontWeight: '600', marginTop: 4 },
+  duracionTxt: { fontSize: 11, color: '#6b7280', marginTop: 3 },
 })
