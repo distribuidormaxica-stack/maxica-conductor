@@ -1,7 +1,9 @@
 import { supabase } from './supabase'
 
 export async function cargarRutaHoy(conductorId) {
-  const hoy = new Date().toISOString().slice(0, 10)
+  const ahora = new Date()
+  const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`
+  console.log('[ruta] buscando conductorId:', conductorId, 'fecha:', hoy)
 
   const { data: ruta, error: eR } = await supabase
     .from('rutas')
@@ -11,6 +13,7 @@ export async function cargarRutaHoy(conductorId) {
     .in('estado', ['pendiente', 'en_ruta'])
     .maybeSingle()
 
+  console.log('[ruta] resultado:', JSON.stringify(ruta), 'error:', eR?.message)
   if (eR) throw eR
   if (!ruta) return null
 

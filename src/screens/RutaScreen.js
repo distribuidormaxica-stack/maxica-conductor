@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -107,6 +109,22 @@ export default function RutaScreen({ navigation }) {
     setRefresco(true)
     await cargar()
     setRefresco(false)
+  }
+
+  function abrirNavegacion(lat, lng, nombre) {
+    Alert.alert(`Navegar a ${nombre}`, '¿Con qué app?', [
+      {
+        text: 'Google Maps',
+        onPress: () =>
+          Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`),
+      },
+      {
+        text: 'Waze',
+        onPress: () =>
+          Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ])
   }
 
   if (cargando) {
@@ -219,7 +237,19 @@ export default function RutaScreen({ navigation }) {
                   <View style={s.paradaDetalle}>
                     <Text style={s.paradaNombre}>{cliente?.nombre ?? '—'}</Text>
                     {cliente?.direccion ? (
-                      <Text style={s.paradaDireccion}>{cliente.direccion}</Text>
+                      <TouchableOpacity
+                        onPress={() => abrirNavegacion(cliente.lat, cliente.lng, cliente.nombre)}
+                      >
+                        <Text style={s.paradaDireccion}>
+                          📍 {cliente.direccion}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : cliente?.lat ? (
+                      <TouchableOpacity
+                        onPress={() => abrirNavegacion(cliente.lat, cliente.lng, cliente.nombre)}
+                      >
+                        <Text style={s.paradaDireccion}>📍 Ver en mapa</Text>
+                      </TouchableOpacity>
                     ) : null}
                     <View style={s.tagsFila}>
                       {cliente?.pedido_kg > 0 ? (
