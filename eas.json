@@ -23,8 +23,5 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_7eQU_ST5dETzPxWHRmqIJg_NzG-x5X9"
       }
     }
-  },
-  "update": {
-    "channel": "production"
   }
 }
