@@ -43,7 +43,7 @@ export default function DebugScreen() {
                 { color: colorPorNivel[l.nivel] ?? '#374151' },
               ]}
             >
-              {l.nivel.toUpperCase()} · {l.ts.slice(11, 19)}
+              {l.nivel.toUpperCase()} · {l.ts}
             </Text>
             <Text style={s.mensaje}>{l.mensaje}</Text>
           </View>

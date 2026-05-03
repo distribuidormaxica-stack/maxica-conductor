@@ -27,7 +27,7 @@ export default function LoginScreen() {
     try {
       await iniciarSesion(email.trim(), password)
     } catch (e) {
-      Alert.alert('No pudimos entrar', e?.message ?? String(e))
+      Alert.alert('Error al ingresar', e?.message ?? String(e))
     } finally {
       setCargando(false)
     }
@@ -40,18 +40,18 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* ── HEADER ── */}
-        <View style={s.header}>
-          <View style={s.logoCircle}>
-            <Text style={s.logoIcon}>🚚</Text>
+        {/* ══ HERO ══════════════════════════════════════════════════════════ */}
+        <View style={s.hero}>
+          <View style={s.logoRing}>
+            <Text style={s.logoEmoji}>🚚</Text>
           </View>
-          <Text style={s.appName}>Maxica Ruta</Text>
-          <Text style={s.appSub}>Plataforma de conductores</Text>
+          <Text style={s.appTitulo}>Maxica Ruta</Text>
+          <Text style={s.appSub}>Sistema de conductores</Text>
         </View>
 
-        {/* ── FORM ── */}
-        <View style={s.card}>
-          <Text style={s.cardTit}>Iniciar sesión</Text>
+        {/* ══ FORM CARD ══════════════════════════════════════════════════════ */}
+        <View style={s.formCard}>
+          <Text style={s.formTit}>Iniciar sesión</Text>
 
           <Text style={s.label}>Correo electrónico</Text>
           <TextInput
@@ -62,6 +62,7 @@ export default function LoginScreen() {
             keyboardType="email-address"
             placeholder="correo@ejemplo.com"
             placeholderTextColor="#94a3b8"
+            returnKeyType="next"
           />
 
           <Text style={s.label}>Contraseña</Text>
@@ -72,6 +73,8 @@ export default function LoginScreen() {
             secureTextEntry
             placeholder="••••••••"
             placeholderTextColor="#94a3b8"
+            returnKeyType="done"
+            onSubmitEditing={onSubmit}
           />
 
           <TouchableOpacity
@@ -84,60 +87,62 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={s.footer}>Solo para conductores autorizados</Text>
+        <Text style={s.aviso}>Acceso exclusivo para conductores autorizados</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#0f172a' },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  root:   { flex: 1, backgroundColor: '#1e3a5f' },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
 
-  header: { alignItems: 'center', marginBottom: 32 },
-  logoCircle: {
-    width: 80, height: 80, borderRadius: 40,
+  // Hero
+  hero:      { alignItems: 'center', marginBottom: 32 },
+  logoRing:  {
+    width: 88, height: 88, borderRadius: 44,
     backgroundColor: '#1e40af',
+    borderWidth: 3, borderColor: '#3b82f6',
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#1e40af', shadowOpacity: 0.5, shadowRadius: 20, elevation: 8,
+    shadowColor: '#3b82f6', shadowOpacity: 0.5, shadowRadius: 20, elevation: 10,
   },
-  logoIcon: { fontSize: 36 },
-  appName:  { fontSize: 28, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.5 },
-  appSub:   { fontSize: 13, color: '#64748b', marginTop: 4 },
+  logoEmoji: { fontSize: 38 },
+  appTitulo: { fontSize: 30, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.3 },
+  appSub:    { fontSize: 13, color: '#93c5fd', marginTop: 4, letterSpacing: 0.5 },
 
-  card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+  // Form card
+  formCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 8,
   },
-  cardTit: { fontSize: 18, fontWeight: '700', color: '#f1f5f9', marginBottom: 20 },
+  formTit: { fontSize: 19, fontWeight: '700', color: '#0f172a', marginBottom: 22 },
 
   label: {
-    fontSize: 12, fontWeight: '600', color: '#94a3b8',
-    marginBottom: 6, marginTop: 14,
-    textTransform: 'uppercase', letterSpacing: 0.5,
+    fontSize: 11, fontWeight: '700', color: '#64748b',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginBottom: 7, marginTop: 16,
   },
   input: {
-    backgroundColor: '#0f172a',
-    borderWidth: 1, borderColor: '#334155',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: '#f1f5f9',
+    paddingHorizontal: 14, paddingVertical: 13,
+    fontSize: 15, color: '#0f172a',
   },
 
   btn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#1e40af',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#2563eb', shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+    marginTop: 26,
+    shadowColor: '#1e40af', shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
   },
-  btnOff:  { opacity: 0.5 },
-  btnTxt:  { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btnOff: { opacity: 0.5 },
+  btnTxt: { color: '#fff', fontWeight: '700', fontSize: 16 },
 
-  footer: { textAlign: 'center', color: '#475569', fontSize: 12, marginTop: 24 },
+  aviso: { textAlign: 'center', color: '#64748b', fontSize: 12, marginTop: 24 },
 })

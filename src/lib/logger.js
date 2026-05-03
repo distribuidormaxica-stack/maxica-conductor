@@ -14,9 +14,17 @@ function serializar(valor) {
   }
 }
 
+function tsVzla() {
+  return new Date().toLocaleTimeString('es-VE', {
+    timeZone: 'America/Caracas',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  })
+}
+
 function agregar(nivel, args) {
   const entrada = {
-    ts: new Date().toISOString(),
+    ts: tsVzla(),
     nivel,
     mensaje: args.map(serializar).join(' '),
   }
