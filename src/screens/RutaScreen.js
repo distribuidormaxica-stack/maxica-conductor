@@ -74,12 +74,26 @@ export default function RutaScreen({ navigation }) {
     }
   }, [conductor])
 
+  // Solo recarga paradas — no toca el estado de la ruta
+  const recargarParadas = useCallback(async () => {
+    const rutaId = rutaIdRef.current
+    if (!rutaId) return
+    try {
+      const { data, error } = await supabase
+        .from('paradas')
+        .select('*, clientes(*)')
+        .eq('ruta_id', rutaId)
+        .order('orden')
+      if (!error && data) setParadas(data)
+    } catch (_) {}
+  }, [])
+
   useEffect(() => {
     setCargando(true)
     cargar().finally(() => setCargando(false))
   }, [cargar])
 
-  // ── Realtime ──────────────────────────────────────────────────────────────
+  // ── Realtime — solo actualiza paradas, nunca sobreescribe el estado de la ruta ──
   useEffect(() => {
     if (!ruta?.id) return
     const canal = supabase
@@ -87,13 +101,11 @@ export default function RutaScreen({ navigation }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'paradas', filter: `ruta_id=eq.${ruta.id}` },
-        () => { if (accionandoRef.current) return; cargar() },
+        () => { if (accionandoRef.current) return; recargarParadas() },
       )
       .subscribe()
     return () => { supabase.removeChannel(canal) }
-  }, [ruta?.id, cargar])
-
-  useEffect(() => { accionandoRef.current = accionando }, [accionando])
+  }, [ruta?.id, recargarParadas])
 
   // ── GPS ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -127,6 +139,7 @@ export default function RutaScreen({ navigation }) {
   // ── Acciones ──────────────────────────────────────────────────────────────
   async function onIniciarRuta() {
     if (!ruta) return
+    accionandoRef.current = 'iniciar'
     setAccionando('iniciar')
     setError(null)
     try {
@@ -134,10 +147,11 @@ export default function RutaScreen({ navigation }) {
       await registrarEvento('ruta_iniciada', {}, { conductorId: conductor.id, rutaId: ruta.id })
       setRuta((r) => ({ ...r, estado: 'en_ruta' }))
     } catch (e) { setError(e?.message ?? String(e)) }
-    finally { setAccionando(null) }
+    finally { accionandoRef.current = null; setAccionando(null) }
   }
 
   async function onMarcarParada(parada, nuevoEstado) {
+    accionandoRef.current = parada.id
     setAccionando(parada.id)
     setError(null)
     try {
@@ -148,7 +162,7 @@ export default function RutaScreen({ navigation }) {
       })
       setParadas((prev) => prev.map((p) => p.id === parada.id ? { ...p, estado: nuevoEstado } : p))
     } catch (e) { setError(e?.message ?? String(e)) }
-    finally { setAccionando(null) }
+    finally { accionandoRef.current = null; setAccionando(null) }
   }
 
   async function onRefrescar() {
