@@ -1,0 +1,29 @@
+name: Build APK
+
+  on:
+    push:
+      branches: [main]
+    workflow_dispatch:
+
+  jobs:
+    build:
+      name: Build Android APK
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+
+        - uses: actions/setup-node@v4
+          with:
+            node-version: 20
+            cache: npm
+
+        - name: Instalar dependencias
+          run: npm ci
+
+        - uses: expo/expo-github-action@v8
+          with:
+            eas-version: latest
+            token: ${{ secrets.EXPO_TOKEN }}
+
+        - name: Construir APK
+          run: eas build --profile production --platform android --non-interactive
