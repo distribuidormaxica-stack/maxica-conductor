@@ -59,7 +59,17 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Construir APK
-        run: eas build --profile production --platform android --non-interactive --output maxica-conductor.apk
+        run: |
+          eas build --profile production --platform android --non-interactive 2>&1 | tee build_log.txt
+          grep -oP 'https://expo\.dev/artifacts/eas/[^\s]+\.apk' build_log.txt | head -1 > apk_url.txt
+          cat apk_url.txt
+
+      - name: Descargar APK
+        run: |
+          APK_URL=$(cat apk_url.txt)
+          echo "Descargando desde: $APK_URL"
+          curl -L "$APK_URL" -o maxica-conductor.apk
+          ls -lh maxica-conductor.apk
 
       - name: Publicar en GitHub Releases
         run: |
