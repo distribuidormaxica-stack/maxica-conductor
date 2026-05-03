@@ -29,7 +29,7 @@ export async function cargarRutaHoy(conductorId) {
 export async function activarRuta(rutaId) {
   const { error } = await supabase
     .from('rutas')
-    .update({ estado: 'en_ruta', ts_inicio: new Date().toISOString() })
+    .update({ estado: 'en_ruta' })
     .eq('id', rutaId)
   if (error) throw error
 }
