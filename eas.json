@@ -3,14 +3,28 @@
     "version": ">= 16.0.0"
   },
   "build": {
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ukwvjkckqeifpaavklbi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_7eQU_ST5dETzPxWHRmqIJg_NzG-x5X9"
+      }
+    },
     "preview": {
       "android": {
         "buildType": "apk"
       },
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://ukwvjkckqeifpaavklbi.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_7eQU_ST5dETzPxWHRmqIJg_NzG-x5X9"
       }
     }
+  },
+  "update": {
+    "channel": "production"
   }
 }

@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import * as Updates from 'expo-updates'
 
 import { instalarLogger } from './src/lib/logger'
 instalarLogger()
@@ -103,6 +105,20 @@ function Rutas() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (__DEV__) return
+    async function verificarActualizacion() {
+      try {
+        const update = await Updates.checkForUpdateAsync()
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync()
+          await Updates.reloadAsync()
+        }
+      } catch {}
+    }
+    verificarActualizacion()
+  }, [])
+
   if (configIncompleta) return <ConfigFaltante />
   return (
     <SafeAreaProvider>
