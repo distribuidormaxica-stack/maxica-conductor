@@ -1,47 +1,15 @@
-name: CI
+name: Construir APK
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-    inputs:
-      build_apk:
-        description: 'Construir nuevo APK (solo si cambiaste permisos o dependencias nativas)'
-        required: false
-        default: 'false'
-        type: boolean
 
 jobs:
-  # ── OTA: se ejecuta en cada push ─────────────────────────────────────────
-  update:
-    name: Publicar actualización OTA
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Publicar actualización OTA
-        run: eas update --channel production --message "${{ github.event.head_commit.message }}" --non-interactive
-
-  # ── APK: solo si se activa manualmente ───────────────────────────────────
   build:
-    name: Construir APK
+    name: Build APK
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -58,16 +26,21 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Construir APK
+      - name: Construir APK en EAS
         run: |
           eas build --profile production --platform android --non-interactive 2>&1 | tee build_log.txt
           grep -oP 'https://expo\.dev/artifacts/eas/[^\s]+\.apk' build_log.txt | head -1 > apk_url.txt
+          echo "URL encontrada:"
           cat apk_url.txt
 
       - name: Descargar APK
         run: |
           APK_URL=$(cat apk_url.txt)
-          echo "Descargando desde: $APK_URL"
+          if [ -z "$APK_URL" ]; then
+            echo "ERROR: No se encontró la URL del APK en el log"
+            cat build_log.txt
+            exit 1
+          fi
           curl -L "$APK_URL" -o maxica-conductor.apk
           ls -lh maxica-conductor.apk
 
