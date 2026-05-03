@@ -20,7 +20,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.cerrato23.maxicaconductor"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +37,11 @@
           "locationWhenInUsePermission": "Maxica necesita tu ubicación para registrar el seguimiento de entregas."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "454e0d58-c82f-4218-a747-c7ac85475bc7"
+      }
+    }
   }
 }

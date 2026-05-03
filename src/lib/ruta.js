@@ -1,8 +1,8 @@
 import { supabase } from './supabase'
+import { fechaHoyVzla } from './fecha'
 
 export async function cargarRutaHoy(conductorId) {
-  const ahora = new Date()
-  const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`
+  const hoy = fechaHoyVzla()
 
   const { data: ruta, error: eR } = await supabase
     .from('rutas')
