@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native'
 import { useAuth } from '../context/AuthContext'
 
@@ -40,12 +41,13 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* ══ HERO ══════════════════════════════════════════════════════════ */}
+        {/* ══ HERO ════════════════════════════════════════════════════��═════ */}
         <View style={s.hero}>
-          <View style={s.logoRing}>
-            <Text style={s.logoEmoji}>🚚</Text>
-          </View>
-          <Text style={s.appTitulo}>Maxica Ruta</Text>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={s.logo}
+            resizeMode="contain"
+          />
           <Text style={s.appSub}>Sistema de conductores</Text>
         </View>
 
@@ -98,18 +100,9 @@ const s = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
 
   // Hero
-  hero:      { alignItems: 'center', marginBottom: 32 },
-  logoRing:  {
-    width: 88, height: 88, borderRadius: 44,
-    backgroundColor: '#1e40af',
-    borderWidth: 3, borderColor: '#3b82f6',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#3b82f6', shadowOpacity: 0.5, shadowRadius: 20, elevation: 10,
-  },
-  logoEmoji: { fontSize: 38 },
-  appTitulo: { fontSize: 30, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.3 },
-  appSub:    { fontSize: 13, color: '#93c5fd', marginTop: 4, letterSpacing: 0.5 },
+  hero:   { alignItems: 'center', marginBottom: 32 },
+  logo:   { width: 200, height: 80, marginBottom: 10 },
+  appSub: { fontSize: 13, color: '#93c5fd', letterSpacing: 0.5 },
 
   // Form card
   formCard: {
