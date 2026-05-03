@@ -25,11 +25,26 @@ const ESTADO = {
   fallido:   { label: 'No entregado', borde: '#ef4444', badge: '#fee2e2', badgeTxt: '#b91c1c', acento: '#ef4444', icono: '✕' },
 }
 
+// ─── tipo parada ─────────────────────────────────────────────────────────────
+const TIPO_PARADA = {
+  entrega:          { label: 'Entrega',   icono: '📦', color: '#2563eb' },
+  recogida:         { label: 'Recogida',  icono: '📤', color: '#7c3aed' },
+  entrega_recogida: { label: 'E + R',     icono: '🔄', color: '#0891b2' },
+  servicio:         { label: 'Servicio',  icono: '🔧', color: '#d97706' },
+}
+
 function formatearTiempo(seg) {
   const m = Math.floor(seg / 60)
   const s = seg % 60
   if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`
   return `${m}m ${String(s).padStart(2, '0')}s`
+}
+
+function saludo() {
+  const h = new Date().getHours()
+  if (h >= 5  && h < 12) return 'Buenos días'
+  if (h >= 12 && h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
 }
 
 export default function RutaScreen({ navigation }) {
@@ -43,7 +58,7 @@ export default function RutaScreen({ navigation }) {
   const [gpsActivo, setGpsActivo]   = useState(false)
   const [tiemposEnSitio, setTiemposEnSitio] = useState({})
   const trackingRef  = useRef(null)
-  const accionandoRef = useRef(null) // ref para el callback de realtime
+  const accionandoRef = useRef(null)
   const rutaIdRef    = useRef(null)
 
   const cargar = useCallback(async () => {
@@ -64,7 +79,7 @@ export default function RutaScreen({ navigation }) {
     cargar().finally(() => setCargando(false))
   }, [cargar])
 
-  // ── Realtime: detecta cambios de paradas hechos desde el panel ──────────
+  // ── Realtime ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ruta?.id) return
     const canal = supabase
@@ -72,20 +87,15 @@ export default function RutaScreen({ navigation }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'paradas', filter: `ruta_id=eq.${ruta.id}` },
-        () => {
-          // Si el conductor está ejecutando una acción propia, esperar
-          if (accionandoRef.current) return
-          cargar()
-        },
+        () => { if (accionandoRef.current) return; cargar() },
       )
       .subscribe()
     return () => { supabase.removeChannel(canal) }
   }, [ruta?.id, cargar])
 
-  // Mantener ref sincronizado con estado
   useEffect(() => { accionandoRef.current = accionando }, [accionando])
 
-  // ── GPS ─────────────────────────────────────────────────────────────────
+  // ── GPS ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (ruta?.estado === 'en_ruta' && conductor) {
       iniciarTracking(conductor.id, ruta.id)
@@ -99,7 +109,7 @@ export default function RutaScreen({ navigation }) {
     return () => { detenerTracking(trackingRef.current); trackingRef.current = null }
   }, [ruta?.estado, conductor])
 
-  // ── Timers en sitio ──────────────────────────────────────────────────────
+  // ── Timers en sitio ───────────────────────────────────────────────────────
   useEffect(() => {
     const enSitio = paradas.filter((p) => p.estado === 'en_sitio' && p.ts_llegada)
     if (enSitio.length === 0) return
@@ -114,7 +124,7 @@ export default function RutaScreen({ navigation }) {
     return () => clearInterval(iv)
   }, [paradas])
 
-  // ── Acciones ─────────────────────────────────────────────────────────────
+  // ── Acciones ──────────────────────────────────────────────────────────────
   async function onIniciarRuta() {
     if (!ruta) return
     setAccionando('iniciar')
@@ -197,7 +207,8 @@ export default function RutaScreen({ navigation }) {
       {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
       <View style={s.header}>
         <View style={s.headerIzq}>
-          <Text style={s.saludo}>
+          <Text style={s.saludoTxt}>{saludo()},</Text>
+          <Text style={s.nombreTxt}>
             {conductor?.nombre?.split(' ')[0] ?? 'Conductor'}
           </Text>
           <Text style={s.fecha}>
@@ -209,7 +220,7 @@ export default function RutaScreen({ navigation }) {
             <View style={[s.gpsChip, !gpsActivo && s.gpsChipOff]}>
               <View style={[s.gpsDot, !gpsActivo && s.gpsDotOff]} />
               <Text style={[s.gpsTxt, !gpsActivo && s.gpsTxtOff]}>
-                {gpsActivo ? 'GPS activo' : 'Sin GPS'}
+                {gpsActivo ? 'GPS' : 'Sin GPS'}
               </Text>
             </View>
           )}
@@ -218,6 +229,8 @@ export default function RutaScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+      {/* Curva inferior del header */}
+      <View style={s.headerCurva} />
 
       {/* ══ ERROR ════════════════════════════════════════════════════════════ */}
       {error ? (
@@ -241,30 +254,23 @@ export default function RutaScreen({ navigation }) {
       {/* ══ MÉTRICAS (en_ruta / completada) ══════════════════════════════════ */}
       {ruta && (ruta.estado === 'en_ruta' || ruta.estado === 'completada') ? (
         <View style={s.metricas}>
-          <View style={[s.metricaCard, s.metricaTotal]}>
-            <Text style={s.metricaNum}>{total}</Text>
-            <Text style={s.metricaLabel}>Total</Text>
-          </View>
-          <View style={[s.metricaCard, s.metricaEntregada]}>
-            <Text style={[s.metricaNum, { color: '#16a34a' }]}>{entregadas}</Text>
-            <Text style={s.metricaLabel}>Entregas</Text>
-          </View>
-          <View style={[s.metricaCard, s.metricaPendiente]}>
-            <Text style={[s.metricaNum, { color: '#f59e0b' }]}>{total - cerradas}</Text>
-            <Text style={s.metricaLabel}>Pendientes</Text>
-          </View>
-          <View style={[s.metricaCard, s.metricaFallida]}>
-            <Text style={[s.metricaNum, { color: '#ef4444' }]}>{fallidas}</Text>
-            <Text style={s.metricaLabel}>Fallidas</Text>
-          </View>
+          <MetricaCard num={total}          label="Total"      color="#475569" />
+          <MetricaCard num={entregadas}     label="Entregadas" color="#16a34a" />
+          <MetricaCard num={total - cerradas} label="Pendientes" color="#d97706" />
+          <MetricaCard num={fallidas}       label="Fallidas"   color="#dc2626" />
         </View>
       ) : null}
 
       {/* ══ RUTA PENDIENTE ═══════════════════════════════════════════════════ */}
       {ruta?.estado === 'pendiente' ? (
         <View style={s.card}>
-          <Text style={s.cardEtiqueta}>Ruta asignada</Text>
-          <Text style={s.pendienteTxt}>{total} paradas listas para iniciar</Text>
+          <View style={s.rutaPendienteTop}>
+            <Text style={s.rutaPendienteIcono}>🚚</Text>
+            <View>
+              <Text style={s.cardEtiqueta}>Ruta asignada para hoy</Text>
+              <Text style={s.pendienteTxt}>{total} paradas listas</Text>
+            </View>
+          </View>
           <TouchableOpacity
             style={[s.btnPrimario, accionando === 'iniciar' && s.btnOff]}
             onPress={onIniciarRuta}
@@ -273,7 +279,7 @@ export default function RutaScreen({ navigation }) {
           >
             {accionando === 'iniciar'
               ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnPrimarioTxt}>🚚  Iniciar ruta</Text>}
+              : <Text style={s.btnPrimarioTxt}>Iniciar ruta</Text>}
           </TouchableOpacity>
         </View>
       ) : null}
@@ -282,12 +288,13 @@ export default function RutaScreen({ navigation }) {
       {ruta?.estado === 'en_ruta' ? (
         <View style={s.card}>
           <View style={s.progresoHeader}>
-            <Text style={s.cardEtiqueta}>Progreso</Text>
+            <Text style={s.cardEtiqueta}>Progreso de entregas</Text>
             <Text style={s.pctLabel}>{pct}%</Text>
           </View>
           <View style={s.barraBg}>
             <View style={[s.barraFill, { width: `${pct}%` }]} />
           </View>
+          <Text style={s.progresoSub}>{entregadas} de {total} paradas cerradas</Text>
           {todasCerradas ? (
             <TouchableOpacity
               style={[s.btnVerde, accionando === 'completar' && s.btnOff]}
@@ -315,10 +322,15 @@ export default function RutaScreen({ navigation }) {
       {/* ══ LISTA DE PARADAS ═════════════════════════════════════════════════ */}
       {ruta && paradas.length > 0 ? (
         <>
-          <Text style={s.seccionTit}>PARADAS · {total}</Text>
+          <View style={s.seccionHeader}>
+            <Text style={s.seccionTit}>PARADAS</Text>
+            <Text style={s.seccionCount}>{total}</Text>
+          </View>
+
           {paradas.map((parada, idx) => {
             const cliente   = parada.clientes
             const meta      = ESTADO[parada.estado] ?? ESTADO.pendiente
+            const tipoPar   = TIPO_PARADA[parada.tipo_parada] ?? TIPO_PARADA.entrega
             const enProceso = accionando === parada.id
             const activa    = ruta.estado === 'en_ruta'
             const tieneUbic = !!(cliente?.lat && cliente?.lng)
@@ -326,7 +338,7 @@ export default function RutaScreen({ navigation }) {
             return (
               <View key={parada.id} style={[s.paradaCard, { borderLeftColor: meta.acento }]}>
 
-                {/* fila principal */}
+                {/* fila superior: número + cliente + navegar */}
                 <View style={s.paradaFila}>
                   {/* número */}
                   <View style={[s.numCircle, { backgroundColor: meta.badge }]}>
@@ -340,13 +352,22 @@ export default function RutaScreen({ navigation }) {
                       <Text style={s.paradaDireccion} numberOfLines={2}>{cliente.direccion}</Text>
                     ) : null}
 
-                    {/* badges de estado y extras */}
+                    {/* badges */}
                     <View style={s.badgeFila}>
+                      {/* estado */}
                       <View style={[s.estadoBadge, { backgroundColor: meta.badge }]}>
                         <Text style={[s.estadoBadgeTxt, { color: meta.badgeTxt }]}>
                           {meta.icono}  {meta.label}
                         </Text>
                       </View>
+
+                      {/* tipo parada */}
+                      <View style={[s.tipoBadge, { borderColor: tipoPar.color + '40', backgroundColor: tipoPar.color + '12' }]}>
+                        <Text style={[s.tipoBadgeTxt, { color: tipoPar.color }]}>
+                          {tipoPar.icono} {tipoPar.label}
+                        </Text>
+                      </View>
+
                       {cliente?.pedido_kg > 0
                         ? <View style={s.tagChip}><Text style={s.tagTxt}>{cliente.pedido_kg} kg</Text></View>
                         : null}
@@ -379,7 +400,7 @@ export default function RutaScreen({ navigation }) {
                   >
                     <Text style={s.btnNavegarIcono}>🗺</Text>
                     <Text style={[s.btnNavegarTxt, !tieneUbic && { color: '#94a3b8' }]}>
-                      Navegar
+                      Ir
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -419,7 +440,7 @@ export default function RutaScreen({ navigation }) {
                     >
                       {enProceso
                         ? <ActivityIndicator color="#fff" size="small" />
-                        : <Text style={s.btnAccionTxt}>❌  No entregado</Text>}
+                        : <Text style={s.btnAccionTxt}>✕  No entregado</Text>}
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -437,6 +458,16 @@ export default function RutaScreen({ navigation }) {
   )
 }
 
+// ─── Componente métrica ────────────────────────────────────────────────────
+function MetricaCard({ num, label, color }) {
+  return (
+    <View style={[s.metricaCard, { borderTopColor: color }]}>
+      <Text style={[s.metricaNum, { color }]}>{num}</Text>
+      <Text style={s.metricaLabel}>{label}</Text>
+    </View>
+  )
+}
+
 // ─── estilos ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   pagina:        { flex: 1, backgroundColor: '#f0f4f8' },
@@ -447,22 +478,30 @@ const s = StyleSheet.create({
   // ── Header ──
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    backgroundColor: '#1e3a5f',
-    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24,
+    backgroundColor: '#0f2744',
+    paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28,
   },
-  headerIzq: { flex: 1 },
-  headerDer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saludo:    { fontSize: 22, fontWeight: '800', color: '#f1f5f9' },
-  fecha:     { fontSize: 13, color: '#93c5fd', marginTop: 3, textTransform: 'capitalize' },
+  headerCurva: {
+    height: 22,
+    backgroundColor: '#0f2744',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginTop: -1,
+  },
+  headerIzq:  { flex: 1 },
+  headerDer:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  saludoTxt:  { fontSize: 13, color: '#93c5fd', fontWeight: '600', letterSpacing: 0.3 },
+  nombreTxt:  { fontSize: 26, fontWeight: '800', color: '#f1f5f9', marginTop: 1 },
+  fecha:      { fontSize: 12, color: '#7dd3fc', marginTop: 4, textTransform: 'capitalize' },
 
-  gpsChip:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#134e2a', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  gpsChip:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#134e2a', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
   gpsChipOff: { backgroundColor: '#4c1b1b' },
   gpsDot:     { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80' },
   gpsDotOff:  { backgroundColor: '#f87171' },
   gpsTxt:     { fontSize: 11, fontWeight: '700', color: '#4ade80' },
   gpsTxtOff:  { color: '#f87171' },
 
-  btnConfig:    { backgroundColor: '#1e40af', borderRadius: 10, width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  btnConfig:    { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   btnConfigTxt: { fontSize: 17, color: '#fff' },
 
   // ── Error ──
@@ -470,62 +509,70 @@ const s = StyleSheet.create({
   errorTxt: { color: '#b91c1c', fontSize: 13 },
 
   // ── Sin ruta ──
-  sinRutaCard: { margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  sinRutaIcono: { fontSize: 48, marginBottom: 12 },
-  sinRutaTit:  { fontSize: 17, fontWeight: '700', color: '#0f172a', marginBottom: 6 },
-  sinRutaNota: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  sinRutaCard: { margin: 16, backgroundColor: '#fff', borderRadius: 20, padding: 36, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 3, marginTop: 24 },
+  sinRutaIcono: { fontSize: 52, marginBottom: 14 },
+  sinRutaTit:  { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
+  sinRutaNota: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
 
   // ── Métricas ──
-  metricas: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 4 },
-  metricaCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  metricaTotal:     { borderTopWidth: 3, borderTopColor: '#64748b' },
-  metricaEntregada: { borderTopWidth: 3, borderTopColor: '#22c55e' },
-  metricaPendiente: { borderTopWidth: 3, borderTopColor: '#f59e0b' },
-  metricaFallida:   { borderTopWidth: 3, borderTopColor: '#ef4444' },
-  metricaNum:   { fontSize: 24, fontWeight: '800', color: '#0f172a' },
-  metricaLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', marginTop: 2 },
+  metricas: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 20, marginBottom: 4 },
+  metricaCard: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 12,
+    alignItems: 'center', borderTopWidth: 3,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+  },
+  metricaNum:   { fontSize: 26, fontWeight: '900', marginBottom: 2 },
+  metricaLabel: { fontSize: 9, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, textAlign: 'center' },
 
   // ── Card genérico ──
   card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 18,
+    backgroundColor: '#fff', borderRadius: 18, padding: 18,
     marginHorizontal: 16, marginTop: 14,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 3,
   },
-  cardEtiqueta: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  pendienteTxt: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
+  cardEtiqueta: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
 
-  cardCompletada: { alignItems: 'center', paddingVertical: 32 },
-  completadaIcono: { fontSize: 48, marginBottom: 10 },
-  completadaTit: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
+  rutaPendienteTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  rutaPendienteIcono: { fontSize: 38 },
+  pendienteTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
+
+  cardCompletada: { alignItems: 'center', paddingVertical: 36 },
+  completadaIcono: { fontSize: 52, marginBottom: 12 },
+  completadaTit: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
   completadaSub: { fontSize: 14, color: '#64748b' },
 
   // ── Progreso ──
   progresoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  pctLabel:  { fontSize: 20, fontWeight: '800', color: '#2563eb' },
-  barraBg:   { height: 12, backgroundColor: '#f1f5f9', borderRadius: 6, overflow: 'hidden', marginBottom: 4 },
-  barraFill: { height: 12, backgroundColor: '#22c55e', borderRadius: 6 },
+  pctLabel:    { fontSize: 24, fontWeight: '900', color: '#2563eb' },
+  barraBg:     { height: 14, backgroundColor: '#f1f5f9', borderRadius: 7, overflow: 'hidden' },
+  barraFill:   { height: 14, backgroundColor: '#22c55e', borderRadius: 7 },
+  progresoSub: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
 
   // ── Sección paradas ──
-  seccionTit: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 1, marginHorizontal: 16, marginTop: 20, marginBottom: 10 },
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 24, marginBottom: 10 },
+  seccionTit:    { fontSize: 11, fontWeight: '800', color: '#94a3b8', letterSpacing: 1.2 },
+  seccionCount:  { fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: '#94a3b8', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1 },
 
   // ── Parada card ──
   paradaCard: {
-    backgroundColor: '#fff', borderRadius: 14,
+    backgroundColor: '#fff', borderRadius: 16,
     marginHorizontal: 16, marginBottom: 10,
     paddingTop: 14, paddingRight: 14, paddingBottom: 14, paddingLeft: 10,
     borderLeftWidth: 5,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   paradaFila:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  numCircle:    { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
-  numTxt:       { fontSize: 13, fontWeight: '800' },
+  numCircle:    { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
+  numTxt:       { fontSize: 13, fontWeight: '900' },
   paradaInfo:   { flex: 1 },
   paradaNombre: { fontSize: 15, fontWeight: '700', color: '#0f172a', lineHeight: 21 },
-  paradaDireccion: { fontSize: 12, color: '#64748b', marginTop: 2, lineHeight: 18 },
+  paradaDireccion: { fontSize: 12, color: '#64748b', marginTop: 2, lineHeight: 17 },
 
-  badgeFila:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  badgeFila:     { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
   estadoBadge:   { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   estadoBadgeTxt:{ fontSize: 11, fontWeight: '700' },
+  tipoBadge:     { borderRadius: 6, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
+  tipoBadgeTxt:  { fontSize: 11, fontWeight: '700' },
   tagChip:       { backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   tagTxt:        { fontSize: 11, color: '#64748b', fontWeight: '600' },
 
@@ -534,33 +581,33 @@ const s = StyleSheet.create({
 
   // ── Botón navegar ──
   btnNavegar: {
-    backgroundColor: '#1e40af', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 8,
-    alignItems: 'center', minWidth: 64,
+    backgroundColor: '#1e40af', borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    alignItems: 'center', minWidth: 52,
     shadowColor: '#1e40af', shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
   btnNavegarOff:   { backgroundColor: '#f1f5f9', shadowOpacity: 0 },
-  btnNavegarIcono: { fontSize: 16 },
-  btnNavegarTxt:   { fontSize: 10, fontWeight: '700', color: '#fff', marginTop: 3 },
+  btnNavegarIcono: { fontSize: 18 },
+  btnNavegarTxt:   { fontSize: 10, fontWeight: '800', color: '#fff', marginTop: 3, letterSpacing: 0.2 },
 
   // ── Botones acción parada ──
-  btnAccion:    { borderRadius: 10, padding: 13, alignItems: 'center', marginTop: 12 },
-  btnAccionTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  btnAccion:    { borderRadius: 12, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center', marginTop: 12 },
+  btnAccionTxt: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
   btnLlegue:    { backgroundColor: '#2563eb' },
   btnsEntrega:  { flexDirection: 'row', gap: 8, marginTop: 12 },
   btnMitad:     { flex: 1 },
   btnEntregado: { backgroundColor: '#16a34a' },
-  btnFallido:   { backgroundColor: '#ef4444' },
+  btnFallido:   { backgroundColor: '#dc2626' },
 
   // ── Botones generales ──
-  btnPrimario: { backgroundColor: '#2563eb', borderRadius: 12, padding: 15, alignItems: 'center', shadowColor: '#2563eb', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  btnVerde:    { backgroundColor: '#16a34a', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 14, shadowColor: '#16a34a', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  btnPrimarioTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  btnOutline:    { borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11 },
-  btnOutlineTxt: { color: '#475569', fontWeight: '600', fontSize: 14 },
+  btnPrimario: { backgroundColor: '#2563eb', borderRadius: 14, padding: 17, alignItems: 'center', shadowColor: '#2563eb', shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
+  btnVerde:    { backgroundColor: '#16a34a', borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 16, shadowColor: '#16a34a', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnPrimarioTxt: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
+  btnOutline:    { borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 13 },
+  btnOutlineTxt: { color: '#475569', fontWeight: '700', fontSize: 14 },
   btnOff: { opacity: 0.5 },
 
   // ── Footer ──
-  btnCerrarSesion:    { alignItems: 'center', paddingVertical: 20, marginTop: 8 },
+  btnCerrarSesion:    { alignItems: 'center', paddingVertical: 24, marginTop: 8 },
   btnCerrarSesionTxt: { color: '#94a3b8', fontSize: 13 },
 })
