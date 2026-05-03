@@ -9,6 +9,9 @@ jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,4 +29,13 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Construir APK
-        run: eas build --profile production --platform android --non-interactive
+        run: eas build --profile production --platform android --non-interactive --output maxica-conductor.apk
+
+      - name: Publicar en GitHub Releases
+        run: |
+          gh release delete apk-latest --yes 2>/dev/null || true
+          gh release create apk-latest maxica-conductor.apk \
+            --title "Maxica Conductor" \
+            --notes "Última versión. Descarga e instala en Android."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
