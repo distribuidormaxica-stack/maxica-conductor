@@ -1,17 +1,47 @@
-name: Build APK
+name: CI
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      build_apk:
+        description: 'Construir nuevo APK (solo si cambiaste permisos o dependencias nativas)'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
+  # ── OTA: se ejecuta en cada push ─────────────────────────────────────────
+  update:
+    name: Publicar actualización OTA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publicar actualización OTA
+        run: eas update --channel production --message "${{ github.event.head_commit.message }}" --non-interactive
+
+  # ── APK: solo si se activa manualmente ───────────────────────────────────
   build:
-    name: Build Android APK
+    name: Construir APK
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
