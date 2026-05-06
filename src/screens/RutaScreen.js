@@ -20,14 +20,14 @@ import { supabase } from '../lib/supabase'
 // ─── colores por estado ────────────────────────────────────────────────────
 const ESTADO = {
   pendiente: { label: 'Pendiente',    borde: '#cbd5e1', badge: '#f1f5f9', badgeTxt: '#64748b', acento: '#94a3b8', icono: '○' },
-  en_sitio:  { label: 'En sitio',     borde: '#3b82f6', badge: '#dbeafe', badgeTxt: '#1d4ed8', acento: '#3b82f6', icono: '●' },
+  en_sitio:  { label: 'En sitio',     borde: '#3b82f6', badge: '#dbeafe', badgeTxt: '#0284C7', acento: '#3b82f6', icono: '●' },
   entregado: { label: 'Entregado',    borde: '#22c55e', badge: '#dcfce7', badgeTxt: '#15803d', acento: '#22c55e', icono: '✓' },
   fallido:   { label: 'No entregado', borde: '#ef4444', badge: '#fee2e2', badgeTxt: '#b91c1c', acento: '#ef4444', icono: '✕' },
 }
 
 // ─── tipo parada ─────────────────────────────────────────────────────────────
 const TIPO_PARADA = {
-  entrega:          { label: 'Entrega',   icono: '📦', color: '#2563eb' },
+  entrega:          { label: 'Entrega',   icono: '📦', color: '#0284C7' },
   recogida:         { label: 'Recogida',  icono: '📤', color: '#7c3aed' },
   entrega_recogida: { label: 'E + R',     icono: '🔄', color: '#0891b2' },
   servicio:         { label: 'Servicio',  icono: '🔧', color: '#d97706' },
@@ -238,9 +238,11 @@ export default function RutaScreen({ navigation }) {
               </Text>
             </View>
           )}
-          <TouchableOpacity style={s.btnConfig} onPress={() => navigation.navigate('Debug')}>
-            <Text style={s.btnConfigTxt}>⚙</Text>
-          </TouchableOpacity>
+          {__DEV__ && (
+            <TouchableOpacity style={s.btnConfig} onPress={() => navigation.navigate('Debug')}>
+              <Text style={s.btnConfigTxt}>⚙</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
       {/* Curva inferior del header */}
@@ -484,20 +486,20 @@ function MetricaCard({ num, label, color }) {
 
 // ─── estilos ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  pagina:        { flex: 1, backgroundColor: '#f0f4f8' },
+  pagina:        { flex: 1, backgroundColor: '#F4F7FB' },
   contenido:     { paddingBottom: 48 },
-  pantallaCarga: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4f8' },
+  pantallaCarga: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
   cargandoTxt:   { marginTop: 12, color: '#64748b', fontSize: 14 },
 
   // ── Header ──
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    backgroundColor: '#0f2744',
+    backgroundColor: '#0F172A',
     paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28,
   },
   headerCurva: {
     height: 22,
-    backgroundColor: '#0f2744',
+    backgroundColor: '#0F172A',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     marginTop: -1,
@@ -508,8 +510,8 @@ const s = StyleSheet.create({
   nombreTxt:  { fontSize: 26, fontWeight: '800', color: '#f1f5f9', marginTop: 1 },
   fecha:      { fontSize: 12, color: '#7dd3fc', marginTop: 4, textTransform: 'capitalize' },
 
-  gpsChip:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#134e2a', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
-  gpsChipOff: { backgroundColor: '#4c1b1b' },
+  gpsChip:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(5,150,105,0.18)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
+  gpsChipOff: { backgroundColor: 'rgba(220,38,38,0.15)' },
   gpsDot:     { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80' },
   gpsDotOff:  { backgroundColor: '#f87171' },
   gpsTxt:     { fontSize: 11, fontWeight: '700', color: '#4ade80' },
@@ -557,7 +559,7 @@ const s = StyleSheet.create({
 
   // ── Progreso ──
   progresoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  pctLabel:    { fontSize: 24, fontWeight: '900', color: '#2563eb' },
+  pctLabel:    { fontSize: 24, fontWeight: '900', color: '#0284C7' },
   barraBg:     { height: 14, backgroundColor: '#f1f5f9', borderRadius: 7, overflow: 'hidden' },
   barraFill:   { height: 14, backgroundColor: '#22c55e', borderRadius: 7 },
   progresoSub: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
@@ -590,15 +592,15 @@ const s = StyleSheet.create({
   tagChip:       { backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   tagTxt:        { fontSize: 11, color: '#64748b', fontWeight: '600' },
 
-  timerTxt:   { fontSize: 12, color: '#2563eb', fontWeight: '700', marginTop: 6 },
+  timerTxt:   { fontSize: 12, color: '#0284C7', fontWeight: '700', marginTop: 6 },
   duracionTxt:{ fontSize: 11, color: '#94a3b8', marginTop: 4 },
 
   // ── Botón navegar ──
   btnNavegar: {
-    backgroundColor: '#1e40af', borderRadius: 12,
+    backgroundColor: '#0284C7', borderRadius: 14,
     paddingHorizontal: 12, paddingVertical: 10,
     alignItems: 'center', minWidth: 52,
-    shadowColor: '#1e40af', shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+    shadowColor: '#0369A1', shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
   btnNavegarOff:   { backgroundColor: '#f1f5f9', shadowOpacity: 0 },
   btnNavegarIcono: { fontSize: 18 },
@@ -607,15 +609,15 @@ const s = StyleSheet.create({
   // ── Botones acción parada ──
   btnAccion:    { borderRadius: 12, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center', marginTop: 12 },
   btnAccionTxt: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
-  btnLlegue:    { backgroundColor: '#2563eb' },
+  btnLlegue:    { backgroundColor: '#0284C7', borderRadius: 100 },
   btnsEntrega:  { flexDirection: 'row', gap: 8, marginTop: 12 },
   btnMitad:     { flex: 1 },
-  btnEntregado: { backgroundColor: '#16a34a' },
-  btnFallido:   { backgroundColor: '#dc2626' },
+  btnEntregado: { backgroundColor: '#059669', borderRadius: 100 },
+  btnFallido:   { backgroundColor: '#DC2626', borderRadius: 100 },
 
   // ── Botones generales ──
-  btnPrimario: { backgroundColor: '#2563eb', borderRadius: 14, padding: 17, alignItems: 'center', shadowColor: '#2563eb', shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
-  btnVerde:    { backgroundColor: '#16a34a', borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 16, shadowColor: '#16a34a', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnPrimario: { backgroundColor: '#0284C7', borderRadius: 100, padding: 17, alignItems: 'center', shadowColor: '#0284C7', shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
+  btnVerde:    { backgroundColor: '#059669', borderRadius: 100, padding: 17, alignItems: 'center', marginTop: 16, shadowColor: '#059669', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
   btnPrimarioTxt: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
   btnOutline:    { borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 13 },
   btnOutlineTxt: { color: '#475569', fontWeight: '700', fontSize: 14 },

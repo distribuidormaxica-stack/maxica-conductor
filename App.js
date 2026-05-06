@@ -138,7 +138,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#F4F7FB',
   },
   titErr: {
     fontSize: 18,

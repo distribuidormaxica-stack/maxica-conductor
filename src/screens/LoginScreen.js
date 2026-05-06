@@ -42,8 +42,8 @@ export default function LoginScreen() {
     >
       {/* Fondo dividido: azul arriba, gris claro abajo */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <View style={{ flex: 0.52, backgroundColor: '#0f2744' }} />
-        <View style={{ flex: 0.48, backgroundColor: '#f0f4f8' }} />
+        <View style={{ flex: 0.52, backgroundColor: '#0F172A' }} />
+        <View style={{ flex: 0.48, backgroundColor: '#F4F7FB' }} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
@@ -149,7 +149,7 @@ const s = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 24,
     paddingHorizontal: 26, paddingTop: 28, paddingBottom: 26,
-    shadowColor: '#0f2744', shadowOpacity: 0.18, shadowRadius: 24, elevation: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.18, shadowRadius: 24, elevation: 10,
   },
   formTit: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 4 },
   formSub: { fontSize: 13, color: '#94a3b8', marginBottom: 24 },
@@ -182,12 +182,12 @@ const s = StyleSheet.create({
   eyeIcon: { fontSize: 16 },
 
   btn: {
-    backgroundColor: '#1e40af',
-    borderRadius: 14,
+    backgroundColor: '#0284C7',
+    borderRadius: 100,
     padding: 17,
     alignItems: 'center',
     marginTop: 28,
-    shadowColor: '#1e40af', shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
+    shadowColor: '#0284C7', shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
   },
   btnOff: { opacity: 0.5 },
   btnTxt: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
