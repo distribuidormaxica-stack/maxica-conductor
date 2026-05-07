@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -38,7 +38,7 @@ function Cargando() {
 }
 
 function Rutas() {
-  const { session, perfil, conductor, cargando } = useAuth()
+  const { session, perfil, conductor, cargando, cerrarSesion } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -61,6 +61,9 @@ function Rutas() {
         <Text style={s.nota}>
           Tu usuario no tiene fila en la tabla perfiles. Contacta al admin.
         </Text>
+        <TouchableOpacity style={s.btnSalir} onPress={cerrarSesion}>
+          <Text style={s.btnSalirTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -72,6 +75,9 @@ function Rutas() {
         <Text style={s.nota}>
           Esta app es solo para conductores. Tu rol actual: {perfil.rol}
         </Text>
+        <TouchableOpacity style={s.btnSalir} onPress={cerrarSesion}>
+          <Text style={s.btnSalirTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -84,6 +90,9 @@ function Rutas() {
           Tu perfil es conductor pero no estás enlazado a la tabla conductores.
           Contacta al admin.
         </Text>
+        <TouchableOpacity style={s.btnSalir} onPress={cerrarSesion}>
+          <Text style={s.btnSalirTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -148,4 +157,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   nota: { fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 20 },
+  btnSalir: { marginTop: 24, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+  btnSalirTxt: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
 })

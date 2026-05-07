@@ -307,6 +307,13 @@ export default function RutaScreen({ navigation }) {
             <Text style={s.cardEtiqueta}>Progreso de entregas</Text>
             <Text style={s.pctLabel}>{pct}%</Text>
           </View>
+          {ruta.ts_inicio ? (
+            <Text style={s.inicioTxt}>
+              Iniciaste a las {new Date(ruta.ts_inicio).toLocaleTimeString('es-VE', {
+                hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas',
+              })}
+            </Text>
+          ) : null}
           <View style={s.barraBg}>
             <View style={[s.barraFill, { width: `${pct}%` }]} />
           </View>
@@ -563,6 +570,7 @@ const s = StyleSheet.create({
   barraBg:     { height: 14, backgroundColor: '#f1f5f9', borderRadius: 7, overflow: 'hidden' },
   barraFill:   { height: 14, backgroundColor: '#22c55e', borderRadius: 7 },
   progresoSub: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
+  inicioTxt:   { fontSize: 11, color: '#94a3b8', marginBottom: 8 },
 
   // ── Sección paradas ──
   seccionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 24, marginBottom: 10 },

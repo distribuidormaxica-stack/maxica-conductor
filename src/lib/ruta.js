@@ -4,16 +4,22 @@ import { fechaHoyVzla } from './fecha'
 export async function cargarRutaHoy(conductorId) {
   const hoy = fechaHoyVzla()
 
-  const { data: ruta, error: eR } = await supabase
+  const { data: rutas, error: eR } = await supabase
     .from('rutas')
     .select('*')
     .eq('conductor_id', conductorId)
     .eq('fecha', hoy)
     .in('estado', ['pendiente', 'en_ruta', 'completada'])
-    .maybeSingle()
+    .order('creado_en', { ascending: false })
 
   if (eR) throw eR
-  if (!ruta) return null
+  if (!rutas || rutas.length === 0) return null
+
+  // Si hay varias rutas en el día, priorizar: en_ruta > pendiente > completada
+  const ruta =
+    rutas.find((r) => r.estado === 'en_ruta') ??
+    rutas.find((r) => r.estado === 'pendiente') ??
+    rutas[0]
 
   const { data: paradas, error: eP } = await supabase
     .from('paradas')
