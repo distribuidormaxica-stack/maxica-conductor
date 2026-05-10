@@ -14,15 +14,16 @@ import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
 import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
-import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta } from '../lib/ruta'
+import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { supabase } from '../lib/supabase'
 
 // ─── colores por estado ────────────────────────────────────────────────────
 const ESTADO = {
-  pendiente: { label: 'Pendiente',    borde: '#cbd5e1', badge: '#f1f5f9', badgeTxt: '#64748b', acento: '#94a3b8', icono: '○' },
-  en_sitio:  { label: 'En sitio',     borde: '#3b82f6', badge: '#dbeafe', badgeTxt: '#0284C7', acento: '#3b82f6', icono: '●' },
-  entregado: { label: 'Entregado',    borde: '#22c55e', badge: '#dcfce7', badgeTxt: '#15803d', acento: '#22c55e', icono: '✓' },
-  fallido:   { label: 'No entregado', borde: '#ef4444', badge: '#fee2e2', badgeTxt: '#b91c1c', acento: '#ef4444', icono: '✕' },
+  pendiente:  { label: 'Pendiente',    borde: '#cbd5e1', badge: '#f1f5f9', badgeTxt: '#64748b', acento: '#94a3b8', icono: '○' },
+  en_sitio:   { label: 'En sitio',     borde: '#3b82f6', badge: '#dbeafe', badgeTxt: '#0284C7', acento: '#3b82f6', icono: '●' },
+  entregado:  { label: 'Entregado',    borde: '#22c55e', badge: '#dcfce7', badgeTxt: '#15803d', acento: '#22c55e', icono: '✓' },
+  fallido:    { label: 'No entregado', borde: '#ef4444', badge: '#fee2e2', badgeTxt: '#b91c1c', acento: '#ef4444', icono: '✕' },
+  rechazado:  { label: 'Rechazado',    borde: '#f97316', badge: '#ffedd5', badgeTxt: '#c2410c', acento: '#f97316', icono: '🚫' },
 }
 
 // ─── tipo parada ─────────────────────────────────────────────────────────────
@@ -183,6 +184,36 @@ export default function RutaScreen({ navigation }) {
     finally { setAccionando(null) }
   }
 
+  async function onCargarSiguienteRuta() {
+    if (!ruta || !conductor) return
+    setAccionando('siguiente')
+    setError(null)
+    try {
+      const siguiente = await cargarSiguienteRuta(conductor.id, ruta.id)
+      if (!siguiente) {
+        Alert.alert('Sin más rutas', 'No hay más rutas pendientes para hoy.')
+        return
+      }
+      setRuta(siguiente.ruta)
+      setParadas(siguiente.paradas)
+      rutaIdRef.current = siguiente.ruta.id
+    } catch (e) { setError(e?.message ?? String(e)) }
+    finally { setAccionando(null) }
+  }
+
+  async function onMarcarRechazado(paradaId) {
+    if (accionandoRef.current) return
+    accionandoRef.current = paradaId
+    setAccionando(paradaId)
+    setError(null)
+    try {
+      await actualizarEstadoParada(paradaId, 'rechazado')
+      await registrarEvento('parada_rechazada', { paradaId }, { conductorId: conductor?.id, rutaId: ruta?.id, paradaId })
+      await recargarParadas()
+    } catch (e) { setError(e?.message ?? String(e)) }
+    finally { accionandoRef.current = null; setAccionando(null) }
+  }
+
   function abrirNavegacion(lat, lng, nombre) {
     if (!lat || !lng) {
       Alert.alert('Sin ubicación', 'Este cliente no tiene coordenadas registradas.')
@@ -207,8 +238,9 @@ export default function RutaScreen({ navigation }) {
 
   const entregadas    = paradas.filter((p) => p.estado === 'entregado').length
   const fallidas      = paradas.filter((p) => p.estado === 'fallido').length
+  const rechazadas    = paradas.filter((p) => p.estado === 'rechazado').length
   const total         = paradas.length
-  const cerradas      = entregadas + fallidas
+  const cerradas      = entregadas + fallidas + rechazadas
   const todasCerradas = total > 0 && cerradas === total
   const pct           = total > 0 ? Math.round((entregadas / total) * 100) : 0
 
@@ -339,6 +371,15 @@ export default function RutaScreen({ navigation }) {
           <Text style={s.completadaIcono}>🎉</Text>
           <Text style={s.completadaTit}>¡Jornada completada!</Text>
           <Text style={s.completadaSub}>{entregadas} de {total} entregas exitosas</Text>
+          <TouchableOpacity
+            style={[s.btnAccion, { backgroundColor: '#0284c7', marginTop: 16 }]}
+            onPress={onCargarSiguienteRuta}
+            disabled={accionando === 'siguiente'}
+          >
+            {accionando === 'siguiente'
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={s.btnAccionTxt}>📋 Cargar siguiente ruta del día</Text>}
+          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -442,28 +483,40 @@ export default function RutaScreen({ navigation }) {
                   </TouchableOpacity>
                 ) : null}
 
-                {/* acciones: en sitio → entregado / fallido */}
+                {/* acciones: en sitio → entregado / fallido / rechazado */}
                 {activa && parada.estado === 'en_sitio' ? (
-                  <View style={s.btnsEntrega}>
+                  <View>
+                    <View style={s.btnsEntrega}>
+                      <TouchableOpacity
+                        style={[s.btnAccion, s.btnEntregado, s.btnMitad, enProceso && s.btnOff]}
+                        onPress={() => onMarcarParada(parada, 'entregado')}
+                        disabled={!!accionando}
+                        activeOpacity={0.85}
+                      >
+                        {enProceso
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={s.btnAccionTxt}>✅  Entregado</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.btnAccion, s.btnFallido, s.btnMitad, enProceso && s.btnOff]}
+                        onPress={() => onMarcarParada(parada, 'fallido')}
+                        disabled={!!accionando}
+                        activeOpacity={0.85}
+                      >
+                        {enProceso
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={s.btnAccionTxt}>✕  No entregado</Text>}
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
-                      style={[s.btnAccion, s.btnEntregado, s.btnMitad, enProceso && s.btnOff]}
-                      onPress={() => onMarcarParada(parada, 'entregado')}
+                      style={[s.btnAccion, { backgroundColor: '#f97316' }, enProceso && s.btnOff]}
+                      onPress={() => onMarcarRechazado(parada.id)}
                       disabled={!!accionando}
                       activeOpacity={0.85}
                     >
                       {enProceso
                         ? <ActivityIndicator color="#fff" size="small" />
-                        : <Text style={s.btnAccionTxt}>✅  Entregado</Text>}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.btnAccion, s.btnFallido, s.btnMitad, enProceso && s.btnOff]}
-                      onPress={() => onMarcarParada(parada, 'fallido')}
-                      disabled={!!accionando}
-                      activeOpacity={0.85}
-                    >
-                      {enProceso
-                        ? <ActivityIndicator color="#fff" size="small" />
-                        : <Text style={s.btnAccionTxt}>✕  No entregado</Text>}
+                        : <Text style={s.btnAccionTxt}>🚫  Cliente rechazó el pedido</Text>}
                     </TouchableOpacity>
                   </View>
                 ) : null}

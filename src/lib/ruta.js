@@ -52,11 +52,34 @@ export async function actualizarEstadoParada(paradaId, estado) {
   const ahora = new Date().toISOString()
   const campos = { estado }
   if (estado === 'en_sitio') campos.ts_llegada = ahora
-  if (estado === 'entregado' || estado === 'fallido') campos.ts_completada = ahora
+  if (estado === 'entregado' || estado === 'fallido' || estado === 'rechazado') campos.ts_completada = ahora
 
   const { error } = await supabase
     .from('paradas')
     .update(campos)
     .eq('id', paradaId)
   if (error) throw error
+}
+
+// Cargar la siguiente ruta pendiente del día (para múltiples despachos)
+export async function cargarSiguienteRuta(conductorId, rutaActualId) {
+  const hoy = fechaHoyVzla()
+  const { data: rutas, error } = await supabase
+    .from('rutas')
+    .select('*')
+    .eq('conductor_id', conductorId)
+    .eq('fecha', hoy)
+    .eq('estado', 'pendiente')
+    .order('creado_en', { ascending: true })
+  if (error) throw error
+  const siguiente = (rutas ?? []).find((r) => r.id !== rutaActualId)
+  if (!siguiente) return null
+
+  const { data: paradas, error: eP } = await supabase
+    .from('paradas')
+    .select('*, clientes(*)')
+    .eq('ruta_id', siguiente.id)
+    .order('orden')
+  if (eP) throw eP
+  return { ruta: siguiente, paradas: paradas ?? [] }
 }
