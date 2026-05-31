@@ -14,6 +14,7 @@ import { configIncompleta } from './src/lib/supabase'
 import LoginScreen from './src/screens/LoginScreen'
 import RutaScreen from './src/screens/RutaScreen'
 import DebugScreen from './src/screens/DebugScreen'
+import CierreJornadaScreen from './src/screens/CierreJornadaScreen'
 
 const Stack = createNativeStackNavigator()
 
@@ -102,7 +103,19 @@ function Rutas() {
       <Stack.Screen
         name="Ruta"
         component={RutaScreen}
-        options={{ title: 'Mi ruta' }}
+        options={({ navigation }) => ({
+          title: 'Mi ruta',
+          headerRight: () => (
+            <TouchableOpacity onPress={() => navigation.navigate('CierreJornada')} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ color: '#0284C7', fontWeight: '700', fontSize: 14 }}>Cerrar jornada</Text>
+            </TouchableOpacity>
+          ),
+        })}
+      />
+      <Stack.Screen
+        name="CierreJornada"
+        component={CierreJornadaScreen}
+        options={{ title: 'Cierre de jornada' }}
       />
       <Stack.Screen
         name="Debug"
