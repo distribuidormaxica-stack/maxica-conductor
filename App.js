@@ -9,6 +9,10 @@ import * as Updates from 'expo-updates'
 import { instalarLogger } from './src/lib/logger'
 instalarLogger()
 
+// Registra la tarea de ubicación en segundo plano (debe correr al arrancar,
+// incluso en lanzamientos headless del servicio de ubicación).
+import './src/lib/locationTask'
+
 import { AuthProvider, useAuth } from './src/context/AuthContext'
 import { configIncompleta } from './src/lib/supabase'
 import LoginScreen from './src/screens/LoginScreen'

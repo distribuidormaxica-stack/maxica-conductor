@@ -1,55 +1,49 @@
 import * as Location from 'expo-location'
-import { supabase } from './supabase'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { LOCATION_TASK } from './locationTask'
 
+// Pide permiso de primer plano (obligatorio) y de segundo plano (para seguir
+// rastreando con la app minimizada o el teléfono bloqueado).
 export async function solicitarPermiso() {
-  const { status } = await Location.requestForegroundPermissionsAsync()
-  return status === 'granted'
+  const fg = await Location.requestForegroundPermissionsAsync()
+  if (fg.status !== 'granted') return { foreground: false, background: false }
+  let bg = { status: 'denied' }
+  try { bg = await Location.requestBackgroundPermissionsAsync() } catch {}
+  return { foreground: true, background: bg.status === 'granted' }
 }
 
+// Arranca el tracking en SEGUNDO PLANO (foreground service en Android).
+// Guarda conductorId/rutaId para que la tarea headless sepa a quién registrar.
 export async function iniciarTracking(conductorId, rutaId = null) {
-  const concedido = await solicitarPermiso()
-  if (!concedido) throw new Error('Permiso de ubicación denegado')
+  const permisos = await solicitarPermiso()
+  if (!permisos.foreground) throw new Error('Permiso de ubicación denegado')
 
-  const sub = await Location.watchPositionAsync(
-    {
-      accuracy: Location.Accuracy.Balanced,
-      timeInterval: 30000,  // cada 30 seg
-      distanceInterval: 50, // o cada 50 m
-    },
-    async (loc) => {
-      if (!supabase) return
-      const lat = loc.coords.latitude
-      const lng = loc.coords.longitude
-      const velocidad_kmh = loc.coords.speed != null ? Math.round(loc.coords.speed * 3.6) : null
-      const precision_m   = loc.coords.accuracy != null ? Math.round(loc.coords.accuracy) : null
-      const ahora = new Date().toISOString()
+  await AsyncStorage.setItem('gps.conductorId', String(conductorId))
+  await AsyncStorage.setItem('gps.rutaId', rutaId ? String(rutaId) : '')
 
-      try {
-        // Posición actual (upsert — solo guarda la última)
-        await supabase.from('ubicaciones').upsert({
-          conductor_id: conductorId,
-          lat,
-          lng,
-          velocidad_kmh,
-          precision_m,
-          actualizado_en: ahora,
-        })
-        // Historial del recorrido (insert — acumula todos los pings del día)
-        await supabase.from('trayecto').insert({
-          conductor_id: conductorId,
-          ruta_id: rutaId,
-          lat,
-          lng,
-          velocidad_kmh,
-        })
-      } catch (e) {
-        console.warn('[gps] error al enviar ubicación:', e?.message)
-      }
+  const yaActivo = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false)
+  if (yaActivo) await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {})
+
+  await Location.startLocationUpdatesAsync(LOCATION_TASK, {
+    accuracy: Location.Accuracy.High,
+    timeInterval: 15000,   // cada 15 s
+    distanceInterval: 20,  // o cada 20 m
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: 'Maxica — seguimiento activo',
+      notificationBody: 'Registrando tu ruta para el despacho.',
+      notificationColor: '#0284C7',
     },
-  )
-  return sub
+  })
+  return { background: permisos.background }
 }
 
-export function detenerTracking(sub) {
-  if (sub?.remove) sub.remove()
+// Detiene el tracking. (No necesita argumento; se conserva por compatibilidad.)
+export async function detenerTracking() {
+  try {
+    const activo = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false)
+    if (activo) await Location.stopLocationUpdatesAsync(LOCATION_TASK)
+  } catch {}
+  try { await AsyncStorage.setItem('gps.rutaId', '') } catch {}
 }
