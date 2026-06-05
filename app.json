@@ -28,7 +28,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
-      "package": "com.cerrato23.maxicaconductor"
+      "package": "com.cerrato23.maxicaconductor",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
