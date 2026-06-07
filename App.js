@@ -13,14 +13,58 @@ instalarLogger()
 // incluso en lanzamientos headless del servicio de ubicación).
 import './src/lib/locationTask'
 
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { Ionicons } from '@expo/vector-icons'
+
 import { AuthProvider, useAuth } from './src/context/AuthContext'
 import { configIncompleta } from './src/lib/supabase'
 import LoginScreen from './src/screens/LoginScreen'
 import RutaScreen from './src/screens/RutaScreen'
 import DebugScreen from './src/screens/DebugScreen'
 import CierreJornadaScreen from './src/screens/CierreJornadaScreen'
+import MapaScreen from './src/screens/MapaScreen'
+import { colors } from './src/theme'
 
 const Stack = createNativeStackNavigator()
+const Tab = createBottomTabNavigator()
+
+// Stack de la pestaña "Ruta": la pantalla principal trae su propio encabezado.
+function RutaStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="Ruta" component={RutaScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="CierreJornada" component={CierreJornadaScreen} options={{ title: 'Cierre de jornada' }} />
+      <Stack.Screen name="Debug" component={DebugScreen} options={{ title: 'Panel de debug' }} />
+    </Stack.Navigator>
+  )
+}
+
+// Navegación principal con barra inferior: Ruta y Mapa.
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: route.name === 'Mapa',
+        headerStyle: { backgroundColor: colors.text },
+        headerTitleStyle: { color: '#fff', fontWeight: '800' },
+        headerTintColor: '#fff',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: { backgroundColor: '#fff', borderTopColor: colors.border, height: 62, paddingBottom: 8, paddingTop: 6 },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarIcon: ({ color, size, focused }) => {
+          const icon = route.name === 'MiRuta'
+            ? (focused ? 'list' : 'list-outline')
+            : (focused ? 'map' : 'map-outline')
+          return <Ionicons name={icon} size={size} color={color} />
+        },
+      })}
+    >
+      <Tab.Screen name="MiRuta" component={RutaStack} options={{ title: 'Ruta' }} />
+      <Tab.Screen name="Mapa" component={MapaScreen} options={{ title: 'Mapa del día', tabBarLabel: 'Mapa' }} />
+    </Tab.Navigator>
+  )
+}
 
 function ConfigFaltante() {
   return (
@@ -102,32 +146,7 @@ function Rutas() {
     )
   }
 
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="Ruta"
-        component={RutaScreen}
-        options={({ navigation }) => ({
-          title: 'Mi ruta',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => navigation.navigate('CierreJornada')} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
-              <Text style={{ color: '#0284C7', fontWeight: '700', fontSize: 14 }}>Cerrar jornada</Text>
-            </TouchableOpacity>
-          ),
-        })}
-      />
-      <Stack.Screen
-        name="CierreJornada"
-        component={CierreJornadaScreen}
-        options={{ title: 'Cierre de jornada' }}
-      />
-      <Stack.Screen
-        name="Debug"
-        component={DebugScreen}
-        options={{ title: 'Panel de debug' }}
-      />
-    </Stack.Navigator>
-  )
+  return <MainTabs />
 }
 
 export default function App() {

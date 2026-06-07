@@ -10,28 +10,31 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
 import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { supabase } from '../lib/supabase'
+import { colors, radius, shadow } from '../theme'
 
-// ─── colores por estado ────────────────────────────────────────────────────
+// ─── estados de parada (con ícono vectorial) ────────────────────────────────
 const ESTADO = {
-  pendiente:  { label: 'Pendiente',    borde: '#cbd5e1', badge: '#f1f5f9', badgeTxt: '#64748b', acento: '#94a3b8', icono: '○' },
-  en_sitio:   { label: 'En sitio',     borde: '#3b82f6', badge: '#dbeafe', badgeTxt: '#0284C7', acento: '#3b82f6', icono: '●' },
-  entregado:  { label: 'Entregado',    borde: '#22c55e', badge: '#dcfce7', badgeTxt: '#15803d', acento: '#22c55e', icono: '✓' },
-  fallido:    { label: 'No entregado', borde: '#ef4444', badge: '#fee2e2', badgeTxt: '#b91c1c', acento: '#ef4444', icono: '✕' },
-  rechazado:  { label: 'Rechazado',    borde: '#f97316', badge: '#ffedd5', badgeTxt: '#c2410c', acento: '#f97316', icono: '🚫' },
+  pendiente: { label: 'Pendiente',    fg: colors.textSoft, bg: colors.bg,        acento: colors.textMuted, icon: 'ellipse-outline' },
+  en_sitio:  { label: 'En sitio',     fg: colors.primary,  bg: colors.infoBg,    acento: colors.primary,   icon: 'navigate' },
+  entregado: { label: 'Entregado',    fg: colors.success,  bg: colors.successBg, acento: colors.success,   icon: 'checkmark-circle' },
+  fallido:   { label: 'No entregado', fg: colors.danger,   bg: colors.dangerBg,  acento: colors.danger,    icon: 'close-circle' },
+  rechazado: { label: 'Rechazado',    fg: colors.orange,   bg: colors.orangeBg,  acento: colors.orange,    icon: 'hand-left' },
 }
 
-// ─── tipo parada ─────────────────────────────────────────────────────────────
+// ─── tipo de parada ─────────────────────────────────────────────────────────
 const TIPO_PARADA = {
-  entrega:          { label: 'Entrega',   icono: '📦', color: '#0284C7' },
-  recogida:         { label: 'Recogida',  icono: '📤', color: '#7c3aed' },
-  entrega_recogida: { label: 'E + R',     icono: '🔄', color: '#0891b2' },
-  servicio:         { label: 'Servicio',  icono: '🔧', color: '#d97706' },
+  entrega:          { label: 'Entrega',  color: colors.primary, icon: 'cube-outline' },
+  recogida:         { label: 'Recogida', color: '#7C3AED',      icon: 'arrow-up-circle-outline' },
+  entrega_recogida: { label: 'E + R',    color: '#0891B2',      icon: 'swap-horizontal' },
+  servicio:         { label: 'Servicio', color: colors.warning, icon: 'construct-outline' },
 }
 
 function formatearTiempo(seg) {
@@ -43,13 +46,27 @@ function formatearTiempo(seg) {
 
 function saludo() {
   const h = new Date().getHours()
-  if (h >= 5  && h < 12) return 'Buenos días'
+  if (h >= 5 && h < 12) return 'Buenos días'
   if (h >= 12 && h < 19) return 'Buenas tardes'
   return 'Buenas noches'
 }
 
+// ─── Tarjeta de métrica ─────────────────────────────────────────────────────
+function StatCard({ icon, num, label, color }) {
+  return (
+    <View style={st.statCard}>
+      <View style={[st.statIcon, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <Text style={[st.statNum, { color }]}>{num}</Text>
+      <Text style={st.statLabel}>{label}</Text>
+    </View>
+  )
+}
+
 export default function RutaScreen({ navigation }) {
   const { conductor, cerrarSesion } = useAuth()
+  const insets = useSafeAreaInsets()
   const [ruta, setRuta]             = useState(null)
   const [paradas, setParadas]       = useState([])
   const [cargando, setCargando]     = useState(true)
@@ -115,9 +132,6 @@ export default function RutaScreen({ navigation }) {
         .then((sub) => {
           trackingRef.current = sub
           setGpsActivo(true)
-          // Si solo se concedió "mientras uso la app", el despacho deja de verte
-          // al bloquear el teléfono o cambiar de app. Guiar a "Permitir todo el
-          // tiempo" en Ajustes (en Android 11+ no se puede conceder desde el cuadro).
           if (sub && sub.background === false) {
             Alert.alert(
               'Activa "Permitir todo el tiempo"',
@@ -256,12 +270,19 @@ export default function RutaScreen({ navigation }) {
     ])
   }
 
+  function confirmarSalir() {
+    Alert.alert('Cerrar sesión', '¿Seguro que quieres salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: () => cerrarSesion() },
+    ])
+  }
+
   // ── Loading ───────────────────────────────────────────────────────────────
   if (cargando) {
     return (
-      <View style={s.pantallaCarga}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={s.cargandoTxt}>Cargando ruta…</Text>
+      <View style={st.pantallaCarga}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={st.cargandoTxt}>Cargando tu ruta…</Text>
       </View>
     )
   }
@@ -275,446 +296,451 @@ export default function RutaScreen({ navigation }) {
   const pct           = total > 0 ? Math.round((entregadas / total) * 100) : 0
 
   return (
-    <ScrollView
-      style={s.pagina}
-      contentContainerStyle={s.contenido}
-      refreshControl={<RefreshControl refreshing={refresco} onRefresh={onRefrescar} tintColor="#2563eb" />}
-    >
-      {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
-      <View style={s.header}>
-        <View style={s.headerIzq}>
-          <Text style={s.saludoTxt}>{saludo()},</Text>
-          <Text style={s.nombreTxt}>
+    <View style={st.pagina}>
+      {/* ══ HEADER ══ */}
+      <View style={[st.header, { paddingTop: insets.top + 14 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.saludo}>{saludo()},</Text>
+          <Text style={st.nombre} numberOfLines={1}>
             {conductor?.nombre?.split(' ')[0] ?? 'Conductor'}
           </Text>
-          <Text style={s.fecha}>
+          <Text style={st.fecha}>
             {fechaDisplayVzla({ weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
         </View>
-        <View style={s.headerDer}>
+        <View style={st.headerDer}>
           {ruta?.estado === 'en_ruta' && (
-            <View style={[s.gpsChip, !gpsActivo && s.gpsChipOff]}>
-              <View style={[s.gpsDot, !gpsActivo && s.gpsDotOff]} />
-              <Text style={[s.gpsTxt, !gpsActivo && s.gpsTxtOff]}>
-                {gpsActivo ? 'GPS' : 'Sin GPS'}
-              </Text>
+            <View style={[st.gpsChip, !gpsActivo && st.gpsChipOff]}>
+              <Ionicons name={gpsActivo ? 'radio' : 'cloud-offline'} size={13} color={gpsActivo ? '#34D399' : '#FCA5A5'} />
+              <Text style={[st.gpsTxt, !gpsActivo && st.gpsTxtOff]}>{gpsActivo ? 'GPS activo' : 'Sin GPS'}</Text>
             </View>
           )}
-          {__DEV__ && (
-            <TouchableOpacity style={s.btnConfig} onPress={() => navigation.navigate('Debug')}>
-              <Text style={s.btnConfigTxt}>⚙</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={st.iconBtn} onPress={confirmarSalir} hitSlop={8}>
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
-      {/* Curva inferior del header */}
-      <View style={s.headerCurva} />
 
-      {/* ══ ERROR ════════════════════════════════════════════════════════════ */}
-      {error ? (
-        <View style={s.errorBox}>
-          <Text style={s.errorTxt}>⚠️  {error}</Text>
-        </View>
-      ) : null}
+      <ScrollView
+        style={st.scroll}
+        contentContainerStyle={[st.contenido, { paddingBottom: insets.bottom + 28 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refresco} onRefresh={onRefrescar} tintColor={colors.primary} />}
+      >
+        {/* ══ ERROR ══ */}
+        {error ? (
+          <View style={st.errorBox}>
+            <Ionicons name="warning" size={18} color={colors.danger} />
+            <Text style={st.errorTxt}>{error}</Text>
+          </View>
+        ) : null}
 
-      {/* ══ SIN RUTA ═════════════════════════════════════════════════════════ */}
-      {!ruta ? (
-        <View style={s.sinRutaCard}>
-          <Text style={s.sinRutaIcono}>📋</Text>
-          <Text style={s.sinRutaTit}>Sin ruta asignada</Text>
-          <Text style={s.sinRutaNota}>El despachador aún no te asignó una ruta para hoy.</Text>
-          <TouchableOpacity style={s.btnOutline} onPress={onRefrescar}>
-            <Text style={s.btnOutlineTxt}>↻  Actualizar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {/* ══ MÉTRICAS (en_ruta / completada) ══════════════════════════════════ */}
-      {ruta && (ruta.estado === 'en_ruta' || ruta.estado === 'completada') ? (
-        <View style={s.metricas}>
-          <MetricaCard num={total}          label="Total"      color="#475569" />
-          <MetricaCard num={entregadas}     label="Entregadas" color="#16a34a" />
-          <MetricaCard num={total - cerradas} label="Pendientes" color="#d97706" />
-          <MetricaCard num={fallidas}       label="Fallidas"   color="#dc2626" />
-        </View>
-      ) : null}
-
-      {/* ══ RUTA PENDIENTE ═══════════════════════════════════════════════════ */}
-      {ruta?.estado === 'pendiente' ? (
-        <View style={s.card}>
-          <View style={s.rutaPendienteTop}>
-            <Text style={s.rutaPendienteIcono}>🚚</Text>
-            <View>
-              <Text style={s.cardEtiqueta}>Ruta asignada para hoy</Text>
-              <Text style={s.pendienteTxt}>{total} paradas listas</Text>
+        {/* ══ SIN RUTA ══ */}
+        {!ruta ? (
+          <View style={st.emptyCard}>
+            <View style={st.emptyIcon}>
+              <Ionicons name="clipboard-outline" size={32} color={colors.primary} />
             </View>
+            <Text style={st.emptyTit}>Sin ruta asignada</Text>
+            <Text style={st.emptyNota}>El despachador aún no te asignó una ruta para hoy.</Text>
+            <TouchableOpacity style={st.btnOutline} onPress={onRefrescar} activeOpacity={0.85}>
+              <Ionicons name="refresh" size={16} color={colors.primary} />
+              <Text style={st.btnOutlineTxt}>Actualizar</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[s.btnPrimario, accionando === 'iniciar' && s.btnOff]}
-            onPress={onIniciarRuta}
-            disabled={!!accionando}
-            activeOpacity={0.85}
-          >
-            {accionando === 'iniciar'
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnPrimarioTxt}>Iniciar ruta</Text>}
-          </TouchableOpacity>
-        </View>
-      ) : null}
+        ) : null}
 
-      {/* ══ BARRA PROGRESO (en_ruta) ══════════════════════════════════════════ */}
-      {ruta?.estado === 'en_ruta' ? (
-        <View style={s.card}>
-          <View style={s.progresoHeader}>
-            <Text style={s.cardEtiqueta}>Progreso de entregas</Text>
-            <Text style={s.pctLabel}>{pct}%</Text>
+        {/* ══ MÉTRICAS ══ */}
+        {ruta && (ruta.estado === 'en_ruta' || ruta.estado === 'completada') ? (
+          <View style={st.metricas}>
+            <StatCard icon="layers-outline"      num={total}            label="Total"      color={colors.slate} />
+            <StatCard icon="checkmark-done"       num={entregadas}       label="Entregadas" color={colors.success} />
+            <StatCard icon="time-outline"         num={total - cerradas} label="Pendientes" color={colors.warning} />
+            <StatCard icon="close-circle-outline" num={fallidas}         label="Fallidas"   color={colors.danger} />
           </View>
-          {ruta.ts_inicio ? (
-            <Text style={s.inicioTxt}>
-              Iniciaste a las {new Date(ruta.ts_inicio).toLocaleTimeString('es-VE', {
-                hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas',
-              })}
-            </Text>
-          ) : null}
-          <View style={s.barraBg}>
-            <View style={[s.barraFill, { width: `${pct}%` }]} />
-          </View>
-          <Text style={s.progresoSub}>{entregadas} de {total} paradas cerradas</Text>
-          {todasCerradas ? (
+        ) : null}
+
+        {/* ══ RUTA PENDIENTE ══ */}
+        {ruta?.estado === 'pendiente' ? (
+          <View style={st.card}>
+            <View style={st.rowCenter}>
+              <View style={st.bigIcon}>
+                <MaterialCommunityIcons name="truck-fast-outline" size={26} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.cardEtiqueta}>Ruta asignada para hoy</Text>
+                <Text style={st.cardBig}>{total} paradas listas</Text>
+              </View>
+            </View>
             <TouchableOpacity
-              style={[s.btnVerde, accionando === 'completar' && s.btnOff]}
-              onPress={onCompletarRuta}
+              style={[st.btnPrimario, accionando === 'iniciar' && st.btnOff]}
+              onPress={onIniciarRuta}
               disabled={!!accionando}
               activeOpacity={0.85}
             >
-              {accionando === 'completar'
+              {accionando === 'iniciar'
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={s.btnPrimarioTxt}>✅  Finalizar jornada</Text>}
+                : (<><Ionicons name="play" size={18} color="#fff" /><Text style={st.btnPrimarioTxt}>Iniciar ruta</Text></>)}
             </TouchableOpacity>
-          ) : null}
-        </View>
-      ) : null}
-
-      {/* ══ JORNADA COMPLETADA ═══════════════════════════════════════════════ */}
-      {ruta?.estado === 'completada' ? (
-        <View style={[s.card, s.cardCompletada]}>
-          <Text style={s.completadaIcono}>🎉</Text>
-          <Text style={s.completadaTit}>¡Jornada completada!</Text>
-          <Text style={s.completadaSub}>{entregadas} de {total} entregas exitosas</Text>
-          <TouchableOpacity
-            style={[s.btnAccion, { backgroundColor: '#0284c7', marginTop: 16 }]}
-            onPress={onCargarSiguienteRuta}
-            disabled={accionando === 'siguiente'}
-          >
-            {accionando === 'siguiente'
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={s.btnAccionTxt}>📋 Cargar siguiente ruta del día</Text>}
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {/* ══ LISTA DE PARADAS ═════════════════════════════════════════════════ */}
-      {ruta && paradas.length > 0 ? (
-        <>
-          <View style={s.seccionHeader}>
-            <Text style={s.seccionTit}>PARADAS</Text>
-            <Text style={s.seccionCount}>{total}</Text>
           </View>
+        ) : null}
 
-          {paradas.map((parada, idx) => {
-            const cliente   = parada.clientes
-            const meta      = ESTADO[parada.estado] ?? ESTADO.pendiente
-            const tipoPar   = TIPO_PARADA[parada.tipo_parada] ?? TIPO_PARADA.entrega
-            const enProceso = accionando === parada.id
-            const activa    = ruta.estado === 'en_ruta'
-            const tieneUbic = !!(cliente?.lat && cliente?.lng)
+        {/* ══ PROGRESO (en_ruta) ══ */}
+        {ruta?.estado === 'en_ruta' ? (
+          <View style={st.card}>
+            <View style={st.rowBetween}>
+              <Text style={st.cardEtiqueta}>Progreso de entregas</Text>
+              <Text style={st.pct}>{pct}%</Text>
+            </View>
+            {ruta.ts_inicio ? (
+              <Text style={st.inicioTxt}>
+                Iniciaste a las {new Date(ruta.ts_inicio).toLocaleTimeString('es-VE', {
+                  hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas',
+                })}
+              </Text>
+            ) : null}
+            <View style={st.barraBg}>
+              <View style={[st.barraFill, { width: `${pct}%` }]} />
+            </View>
+            <Text style={st.progresoSub}>{cerradas} de {total} paradas cerradas</Text>
+            {todasCerradas ? (
+              <TouchableOpacity
+                style={[st.btnVerde, accionando === 'completar' && st.btnOff]}
+                onPress={onCompletarRuta}
+                disabled={!!accionando}
+                activeOpacity={0.85}
+              >
+                {accionando === 'completar'
+                  ? <ActivityIndicator color="#fff" />
+                  : (<><Ionicons name="flag" size={18} color="#fff" /><Text style={st.btnPrimarioTxt}>Finalizar jornada</Text></>)}
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
-            return (
-              <View key={parada.id} style={[s.paradaCard, { borderLeftColor: meta.acento }]}>
+        {/* ══ COMPLETADA ══ */}
+        {ruta?.estado === 'completada' ? (
+          <View style={[st.card, st.cardOk]}>
+            <View style={st.okIcon}>
+              <Ionicons name="checkmark-done-circle" size={40} color={colors.success} />
+            </View>
+            <Text style={st.okTit}>¡Jornada completada!</Text>
+            <Text style={st.okSub}>{entregadas} de {total} entregas exitosas</Text>
+            <TouchableOpacity
+              style={[st.btnPrimario, { marginTop: 16 }, accionando === 'siguiente' && st.btnOff]}
+              onPress={onCargarSiguienteRuta}
+              disabled={accionando === 'siguiente'}
+              activeOpacity={0.85}
+            >
+              {accionando === 'siguiente'
+                ? <ActivityIndicator color="#fff" />
+                : (<><Ionicons name="albums-outline" size={18} color="#fff" /><Text style={st.btnPrimarioTxt}>Cargar siguiente ruta</Text></>)}
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
-                {/* fila superior: número + cliente + navegar */}
-                <View style={s.paradaFila}>
-                  {/* número */}
-                  <View style={[s.numCircle, { backgroundColor: meta.badge }]}>
-                    <Text style={[s.numTxt, { color: meta.badgeTxt }]}>{idx + 1}</Text>
-                  </View>
+        {/* ══ LISTA DE PARADAS ══ */}
+        {ruta && paradas.length > 0 ? (
+          <>
+            <View style={st.seccionHeader}>
+              <Text style={st.seccionTit}>PARADAS</Text>
+              <View style={st.seccionCount}><Text style={st.seccionCountTxt}>{total}</Text></View>
+            </View>
 
-                  {/* datos cliente */}
-                  <View style={s.paradaInfo}>
-                    <Text style={s.paradaNombre}>{cliente?.nombre ?? '—'}</Text>
-                    {cliente?.direccion ? (
-                      <Text style={s.paradaDireccion} numberOfLines={2}>{cliente.direccion}</Text>
-                    ) : null}
+            {paradas.map((parada, idx) => {
+              const cliente   = parada.clientes
+              const meta      = ESTADO[parada.estado] ?? ESTADO.pendiente
+              const tipoPar   = TIPO_PARADA[parada.tipo_parada] ?? TIPO_PARADA.entrega
+              const enProceso = accionando === parada.id
+              const activa    = ruta.estado === 'en_ruta'
+              const tieneUbic = !!(cliente?.lat && cliente?.lng)
 
-                    {/* badges */}
-                    <View style={s.badgeFila}>
-                      {/* estado */}
-                      <View style={[s.estadoBadge, { backgroundColor: meta.badge }]}>
-                        <Text style={[s.estadoBadgeTxt, { color: meta.badgeTxt }]}>
-                          {meta.icono}  {meta.label}
-                        </Text>
-                      </View>
-
-                      {/* tipo parada */}
-                      <View style={[s.tipoBadge, { borderColor: tipoPar.color + '40', backgroundColor: tipoPar.color + '12' }]}>
-                        <Text style={[s.tipoBadgeTxt, { color: tipoPar.color }]}>
-                          {tipoPar.icono} {tipoPar.label}
-                        </Text>
-                      </View>
-
-                      {cliente?.pedido_kg > 0
-                        ? <View style={s.tagChip}><Text style={s.tagTxt}>{cliente.pedido_kg} kg</Text></View>
-                        : null}
-                      {cliente?.zona
-                        ? <View style={s.tagChip}><Text style={s.tagTxt}>{cliente.zona}</Text></View>
-                        : null}
+              return (
+                <View key={parada.id} style={[st.paradaCard, { borderLeftColor: meta.acento }]}>
+                  <View style={st.paradaFila}>
+                    <View style={[st.numCircle, { backgroundColor: meta.bg }]}>
+                      <Text style={[st.numTxt, { color: meta.fg }]}>{idx + 1}</Text>
                     </View>
 
-                    {/* timer en sitio */}
-                    {parada.estado === 'en_sitio' && tiemposEnSitio[parada.id] != null ? (
-                      <Text style={s.timerTxt}>⏱  {formatearTiempo(tiemposEnSitio[parada.id])} en sitio</Text>
-                    ) : null}
+                    <View style={st.paradaInfo}>
+                      <Text style={st.paradaNombre} numberOfLines={2}>{cliente?.nombre ?? '—'}</Text>
+                      {cliente?.direccion ? (
+                        <View style={st.dirRow}>
+                          <Ionicons name="location-outline" size={13} color={colors.textMuted} />
+                          <Text style={st.paradaDireccion} numberOfLines={2}>{cliente.direccion}</Text>
+                        </View>
+                      ) : null}
 
-                    {/* duración servicio completado */}
-                    {(parada.estado === 'entregado' || parada.estado === 'fallido') &&
-                      parada.ts_llegada && parada.ts_completada ? (
-                      <Text style={s.duracionTxt}>
-                        Servicio: {formatearTiempo(Math.round(
-                          (new Date(parada.ts_completada) - new Date(parada.ts_llegada)) / 1000
-                        ))}
-                      </Text>
-                    ) : null}
-                  </View>
+                      <View style={st.badgeFila}>
+                        <View style={[st.estadoBadge, { backgroundColor: meta.bg }]}>
+                          <Ionicons name={meta.icon} size={12} color={meta.fg} />
+                          <Text style={[st.estadoBadgeTxt, { color: meta.fg }]}>{meta.label}</Text>
+                        </View>
+                        <View style={[st.tipoBadge, { borderColor: tipoPar.color + '40', backgroundColor: tipoPar.color + '12' }]}>
+                          <Ionicons name={tipoPar.icon} size={12} color={tipoPar.color} />
+                          <Text style={[st.tipoBadgeTxt, { color: tipoPar.color }]}>{tipoPar.label}</Text>
+                        </View>
+                        {cliente?.pedido_kg > 0 ? (
+                          <View style={st.tagChip}><Text style={st.tagTxt}>{cliente.pedido_kg} kg</Text></View>
+                        ) : null}
+                        {cliente?.zona ? (
+                          <View style={st.tagChip}><Text style={st.tagTxt}>{cliente.zona}</Text></View>
+                        ) : null}
+                      </View>
 
-                  {/* botón navegar */}
-                  <TouchableOpacity
-                    style={[s.btnNavegar, !tieneUbic && s.btnNavegarOff]}
-                    onPress={() => abrirNavegacion(cliente?.lat, cliente?.lng, cliente?.nombre ?? 'cliente')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={s.btnNavegarIcono}>🗺</Text>
-                    <Text style={[s.btnNavegarTxt, !tieneUbic && { color: '#94a3b8' }]}>
-                      Ir
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                      {parada.estado === 'en_sitio' && tiemposEnSitio[parada.id] != null ? (
+                        <View style={st.timerRow}>
+                          <Ionicons name="timer-outline" size={13} color={colors.primary} />
+                          <Text style={st.timerTxt}>{formatearTiempo(tiemposEnSitio[parada.id])} en sitio</Text>
+                        </View>
+                      ) : null}
 
-                {/* acción: pendiente → llegué */}
-                {activa && parada.estado === 'pendiente' ? (
-                  <TouchableOpacity
-                    style={[s.btnAccion, s.btnLlegue, enProceso && s.btnOff]}
-                    onPress={() => onMarcarParada(parada, 'en_sitio')}
-                    disabled={!!accionando}
-                    activeOpacity={0.85}
-                  >
-                    {enProceso
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <Text style={s.btnAccionTxt}>📍  Llegué al sitio</Text>}
-                  </TouchableOpacity>
-                ) : null}
-
-                {/* acciones: en sitio → entregado / fallido / rechazado */}
-                {activa && parada.estado === 'en_sitio' ? (
-                  <View>
-                    <View style={s.btnsEntrega}>
-                      <TouchableOpacity
-                        style={[s.btnAccion, s.btnEntregado, s.btnMitad, enProceso && s.btnOff]}
-                        onPress={() => onMarcarParada(parada, 'entregado')}
-                        disabled={!!accionando}
-                        activeOpacity={0.85}
-                      >
-                        {enProceso
-                          ? <ActivityIndicator color="#fff" size="small" />
-                          : <Text style={s.btnAccionTxt}>✅  Entregado</Text>}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.btnAccion, s.btnFallido, s.btnMitad, enProceso && s.btnOff]}
-                        onPress={() => onMarcarParada(parada, 'fallido')}
-                        disabled={!!accionando}
-                        activeOpacity={0.85}
-                      >
-                        {enProceso
-                          ? <ActivityIndicator color="#fff" size="small" />
-                          : <Text style={s.btnAccionTxt}>✕  No entregado</Text>}
-                      </TouchableOpacity>
+                      {(parada.estado === 'entregado' || parada.estado === 'fallido') &&
+                        parada.ts_llegada && parada.ts_completada ? (
+                        <Text style={st.duracionTxt}>
+                          Servicio: {formatearTiempo(Math.round((new Date(parada.ts_completada) - new Date(parada.ts_llegada)) / 1000))}
+                        </Text>
+                      ) : null}
                     </View>
+
                     <TouchableOpacity
-                      style={[s.btnAccion, { backgroundColor: '#f97316' }, enProceso && s.btnOff]}
-                      onPress={() => onMarcarRechazado(parada.id)}
+                      style={[st.btnNavegar, !tieneUbic && st.btnNavegarOff]}
+                      onPress={() => abrirNavegacion(cliente?.lat, cliente?.lng, cliente?.nombre ?? 'cliente')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate" size={18} color={tieneUbic ? colors.primary : colors.textMuted} />
+                      <Text style={[st.btnNavegarTxt, !tieneUbic && { color: colors.textMuted }]}>Ir</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* acción: pendiente → llegué */}
+                  {activa && parada.estado === 'pendiente' ? (
+                    <TouchableOpacity
+                      style={[st.btnAccion, st.btnLlegue, enProceso && st.btnOff]}
+                      onPress={() => onMarcarParada(parada, 'en_sitio')}
                       disabled={!!accionando}
                       activeOpacity={0.85}
                     >
                       {enProceso
                         ? <ActivityIndicator color="#fff" size="small" />
-                        : <Text style={s.btnAccionTxt}>🚫  Cliente rechazó el pedido</Text>}
+                        : (<><Ionicons name="location" size={16} color="#fff" /><Text style={st.btnAccionTxt}>Llegué al sitio</Text></>)}
                     </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
-            )
-          })}
-        </>
-      ) : null}
+                  ) : null}
 
-      {/* ══ FOOTER ═══════════════════════════════════════════════════════════ */}
-      <TouchableOpacity style={s.btnCerrarSesion} onPress={cerrarSesion}>
-        <Text style={s.btnCerrarSesionTxt}>Cerrar sesión</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  )
-}
+                  {/* acciones: en sitio → entregado / fallido / rechazado */}
+                  {activa && parada.estado === 'en_sitio' ? (
+                    <View style={{ gap: 8, marginTop: 10 }}>
+                      <View style={st.btnsEntrega}>
+                        <TouchableOpacity
+                          style={[st.btnAccion, st.btnEntregado, st.btnMitad, enProceso && st.btnOff]}
+                          onPress={() => onMarcarParada(parada, 'entregado')}
+                          disabled={!!accionando}
+                          activeOpacity={0.85}
+                        >
+                          {enProceso
+                            ? <ActivityIndicator color="#fff" size="small" />
+                            : (<><Ionicons name="checkmark-circle" size={16} color="#fff" /><Text style={st.btnAccionTxt}>Entregado</Text></>)}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[st.btnAccion, st.btnFallido, st.btnMitad, enProceso && st.btnOff]}
+                          onPress={() => onMarcarParada(parada, 'fallido')}
+                          disabled={!!accionando}
+                          activeOpacity={0.85}
+                        >
+                          {enProceso
+                            ? <ActivityIndicator color="#fff" size="small" />
+                            : (<><Ionicons name="close-circle" size={16} color="#fff" /><Text style={st.btnAccionTxt}>No entregado</Text></>)}
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={[st.btnAccion, { backgroundColor: colors.orange }, enProceso && st.btnOff]}
+                        onPress={() => onMarcarRechazado(parada.id)}
+                        disabled={!!accionando}
+                        activeOpacity={0.85}
+                      >
+                        {enProceso
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : (<><Ionicons name="hand-left" size={16} color="#fff" /><Text style={st.btnAccionTxt}>Cliente rechazó el pedido</Text></>)}
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                </View>
+              )
+            })}
+          </>
+        ) : null}
 
-// ─── Componente métrica ────────────────────────────────────────────────────
-function MetricaCard({ num, label, color }) {
-  return (
-    <View style={[s.metricaCard, { borderTopColor: color }]}>
-      <Text style={[s.metricaNum, { color }]}>{num}</Text>
-      <Text style={s.metricaLabel}>{label}</Text>
+        {ruta ? (
+          <TouchableOpacity style={st.cierreBtn} onPress={() => navigation.navigate('CierreJornada')} activeOpacity={0.85}>
+            <Ionicons name="clipboard-outline" size={16} color={colors.textSoft} />
+            <Text style={st.cierreTxt}>Cerrar jornada</Text>
+          </TouchableOpacity>
+        ) : null}
+      </ScrollView>
     </View>
   )
 }
 
-// ─── estilos ───────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  pagina:        { flex: 1, backgroundColor: '#F4F7FB' },
-  contenido:     { paddingBottom: 48 },
-  pantallaCarga: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  cargandoTxt:   { marginTop: 12, color: '#64748b', fontSize: 14 },
+const st = StyleSheet.create({
+  pagina: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
+  contenido: { padding: 16, paddingTop: 18 },
 
-  // ── Header ──
+  pantallaCarga: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg, gap: 12 },
+  cargandoTxt: { color: colors.textSoft, fontSize: 14, fontWeight: '600' },
+
+  // Header
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28,
+    backgroundColor: colors.text,
+    paddingHorizontal: 20, paddingBottom: 18,
+    flexDirection: 'row', alignItems: 'flex-start',
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  headerCurva: {
-    height: 22,
-    backgroundColor: '#0F172A',
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    marginTop: -1,
+  saludo: { color: '#94A3B8', fontSize: 13, fontWeight: '500' },
+  nombre: { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 1 },
+  fecha:  { color: '#CBD5E1', fontSize: 12.5, marginTop: 3, textTransform: 'capitalize' },
+  headerDer: { alignItems: 'flex-end', gap: 8 },
+  gpsChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(52,211,153,0.16)',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.full,
   },
-  headerIzq:  { flex: 1 },
-  headerDer:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  saludoTxt:  { fontSize: 13, color: '#93c5fd', fontWeight: '600', letterSpacing: 0.3 },
-  nombreTxt:  { fontSize: 26, fontWeight: '800', color: '#f1f5f9', marginTop: 1 },
-  fecha:      { fontSize: 12, color: '#7dd3fc', marginTop: 4, textTransform: 'capitalize' },
-
-  gpsChip:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(5,150,105,0.18)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
-  gpsChipOff: { backgroundColor: 'rgba(220,38,38,0.15)' },
-  gpsDot:     { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80' },
-  gpsDotOff:  { backgroundColor: '#f87171' },
-  gpsTxt:     { fontSize: 11, fontWeight: '700', color: '#4ade80' },
-  gpsTxtOff:  { color: '#f87171' },
-
-  btnConfig:    { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  btnConfigTxt: { fontSize: 17, color: '#fff' },
-
-  // ── Error ──
-  errorBox: { margin: 16, backgroundColor: '#fef2f2', borderRadius: 12, padding: 14, borderLeftWidth: 4, borderLeftColor: '#ef4444' },
-  errorTxt: { color: '#b91c1c', fontSize: 13 },
-
-  // ── Sin ruta ──
-  sinRutaCard: { margin: 16, backgroundColor: '#fff', borderRadius: 20, padding: 36, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 3, marginTop: 24 },
-  sinRutaIcono: { fontSize: 52, marginBottom: 14 },
-  sinRutaTit:  { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
-  sinRutaNota: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-
-  // ── Métricas ──
-  metricas: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  metricaCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 12,
-    alignItems: 'center', borderTopWidth: 3,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+  gpsChipOff: { backgroundColor: 'rgba(248,113,113,0.16)' },
+  gpsTxt: { color: '#34D399', fontSize: 11.5, fontWeight: '700' },
+  gpsTxtOff: { color: '#FCA5A5' },
+  iconBtn: {
+    width: 38, height: 38, borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  metricaNum:   { fontSize: 26, fontWeight: '900', marginBottom: 2 },
-  metricaLabel: { fontSize: 9, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, textAlign: 'center' },
 
-  // ── Card genérico ──
-  card: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 18,
-    marginHorizontal: 16, marginTop: 14,
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 3,
+  // Error
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: 12, marginBottom: 14,
+    borderLeftWidth: 4, borderLeftColor: colors.danger,
   },
-  cardEtiqueta: { fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
+  errorTxt: { flex: 1, color: '#991B1B', fontSize: 13, fontWeight: '500' },
 
-  rutaPendienteTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
-  rutaPendienteIcono: { fontSize: 38 },
-  pendienteTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
+  // Empty
+  emptyCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: 32, alignItems: 'center',
+    marginTop: 8, ...shadow(3),
+  },
+  emptyIcon: {
+    width: 64, height: 64, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+  },
+  emptyTit: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 6 },
+  emptyNota: { fontSize: 13.5, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+  btnOutline: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1.5, borderColor: colors.primary, borderRadius: radius.full,
+    paddingHorizontal: 22, paddingVertical: 11,
+  },
+  btnOutlineTxt: { color: colors.primary, fontWeight: '700', fontSize: 14 },
 
-  cardCompletada: { alignItems: 'center', paddingVertical: 36 },
-  completadaIcono: { fontSize: 52, marginBottom: 12 },
-  completadaTit: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
-  completadaSub: { fontSize: 14, color: '#64748b' },
+  // Métricas
+  metricas: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statCard: {
+    flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg,
+    paddingVertical: 14, paddingHorizontal: 6, alignItems: 'center', ...shadow(2),
+  },
+  statIcon: {
+    width: 34, height: 34, borderRadius: radius.full,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 7,
+  },
+  statNum: { fontSize: 22, fontWeight: '800' },
+  statLabel: { fontSize: 10.5, color: colors.textMuted, fontWeight: '600', marginTop: 1 },
 
-  // ── Progreso ──
-  progresoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  pctLabel:    { fontSize: 24, fontWeight: '900', color: '#0284C7' },
-  barraBg:     { height: 14, backgroundColor: '#f1f5f9', borderRadius: 7, overflow: 'hidden' },
-  barraFill:   { height: 14, backgroundColor: '#22c55e', borderRadius: 7 },
-  progresoSub: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
-  inicioTxt:   { fontSize: 11, color: '#94a3b8', marginBottom: 8 },
+  // Card genérica
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 18, marginBottom: 14, ...shadow(3) },
+  cardEtiqueta: { fontSize: 12, fontWeight: '700', color: colors.textSoft, textTransform: 'uppercase', letterSpacing: 0.4 },
+  cardBig: { fontSize: 18, fontWeight: '800', color: colors.text, marginTop: 2 },
+  rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bigIcon: {
+    width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.primarySoft,
+    justifyContent: 'center', alignItems: 'center',
+  },
 
-  // ── Sección paradas ──
-  seccionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 24, marginBottom: 10 },
-  seccionTit:    { fontSize: 11, fontWeight: '800', color: '#94a3b8', letterSpacing: 1.2 },
-  seccionCount:  { fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: '#94a3b8', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1 },
+  pct: { fontSize: 26, fontWeight: '800', color: colors.primary },
+  inicioTxt: { fontSize: 12.5, color: colors.textMuted, marginTop: 4, marginBottom: 12 },
+  barraBg: { height: 12, backgroundColor: '#EEF2F7', borderRadius: radius.full, overflow: 'hidden', marginTop: 6 },
+  barraFill: { height: 12, backgroundColor: colors.success, borderRadius: radius.full },
+  progresoSub: { fontSize: 12.5, color: colors.textSoft, marginTop: 8, fontWeight: '600' },
 
-  // ── Parada card ──
+  // Completada
+  cardOk: { alignItems: 'center', backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0' },
+  okIcon: { marginBottom: 6 },
+  okTit: { fontSize: 20, fontWeight: '800', color: '#15803D' },
+  okSub: { fontSize: 13.5, color: '#16A34A', marginTop: 3 },
+
+  // Sección
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 10 },
+  seccionTit: { fontSize: 12.5, fontWeight: '800', color: colors.textSoft, letterSpacing: 1 },
+  seccionCount: { backgroundColor: colors.slate, borderRadius: radius.full, minWidth: 22, paddingHorizontal: 7, paddingVertical: 1, alignItems: 'center' },
+  seccionCountTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  // Parada
   paradaCard: {
-    backgroundColor: '#fff', borderRadius: 16,
-    marginHorizontal: 16, marginBottom: 10,
-    paddingTop: 14, paddingRight: 14, paddingBottom: 14, paddingLeft: 10,
-    borderLeftWidth: 5,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: 14, marginBottom: 12,
+    borderLeftWidth: 4, ...shadow(2),
   },
-  paradaFila:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  numCircle:    { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
-  numTxt:       { fontSize: 13, fontWeight: '900' },
-  paradaInfo:   { flex: 1 },
-  paradaNombre: { fontSize: 15, fontWeight: '700', color: '#0f172a', lineHeight: 21 },
-  paradaDireccion: { fontSize: 12, color: '#64748b', marginTop: 2, lineHeight: 17 },
+  paradaFila: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  numCircle: { width: 34, height: 34, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
+  numTxt: { fontSize: 15, fontWeight: '800' },
+  paradaInfo: { flex: 1, minWidth: 0 },
+  paradaNombre: { fontSize: 15.5, fontWeight: '700', color: colors.text },
+  dirRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 3 },
+  paradaDireccion: { flex: 1, fontSize: 12.5, color: colors.textMuted, lineHeight: 17 },
+  badgeFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  estadoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
+  estadoBadgeTxt: { fontSize: 11, fontWeight: '700' },
+  tipoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  tipoBadgeTxt: { fontSize: 11, fontWeight: '700' },
+  tagChip: { backgroundColor: colors.bg, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
+  tagTxt: { fontSize: 11, color: colors.textSoft, fontWeight: '600' },
+  timerRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  timerTxt: { fontSize: 12.5, color: colors.primary, fontWeight: '700' },
+  duracionTxt: { fontSize: 11.5, color: colors.textMuted, marginTop: 6 },
 
-  badgeFila:     { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
-  estadoBadge:   { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  estadoBadgeTxt:{ fontSize: 11, fontWeight: '700' },
-  tipoBadge:     { borderRadius: 6, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
-  tipoBadgeTxt:  { fontSize: 11, fontWeight: '700' },
-  tagChip:       { backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  tagTxt:        { fontSize: 11, color: '#64748b', fontWeight: '600' },
-
-  timerTxt:   { fontSize: 12, color: '#0284C7', fontWeight: '700', marginTop: 6 },
-  duracionTxt:{ fontSize: 11, color: '#94a3b8', marginTop: 4 },
-
-  // ── Botón navegar ──
   btnNavegar: {
-    backgroundColor: '#0284C7', borderRadius: 14,
-    paddingHorizontal: 12, paddingVertical: 10,
-    alignItems: 'center', minWidth: 52,
-    shadowColor: '#0369A1', shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primarySoft, borderRadius: radius.md,
+    paddingHorizontal: 12, paddingVertical: 8, gap: 1, minWidth: 52,
   },
-  btnNavegarOff:   { backgroundColor: '#f1f5f9', shadowOpacity: 0 },
-  btnNavegarIcono: { fontSize: 18 },
-  btnNavegarTxt:   { fontSize: 10, fontWeight: '800', color: '#fff', marginTop: 3, letterSpacing: 0.2 },
+  btnNavegarOff: { backgroundColor: colors.bg },
+  btnNavegarTxt: { fontSize: 11, fontWeight: '700', color: colors.primary },
 
-  // ── Botones acción parada ──
-  btnAccion:    { borderRadius: 12, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center', marginTop: 12 },
-  btnAccionTxt: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.2 },
-  btnLlegue:    { backgroundColor: '#0284C7', borderRadius: 100 },
-  btnsEntrega:  { flexDirection: 'row', gap: 8, marginTop: 12 },
-  btnMitad:     { flex: 1 },
-  btnEntregado: { backgroundColor: '#059669', borderRadius: 100 },
-  btnFallido:   { backgroundColor: '#DC2626', borderRadius: 100 },
+  // Botones de acción
+  btnAccion: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    borderRadius: radius.full, paddingVertical: 14,
+  },
+  btnAccionTxt: { color: '#fff', fontWeight: '800', fontSize: 14.5 },
+  btnLlegue: { backgroundColor: colors.primary, marginTop: 10 },
+  btnEntregado: { backgroundColor: colors.success },
+  btnFallido: { backgroundColor: colors.danger },
+  btnsEntrega: { flexDirection: 'row', gap: 8 },
+  btnMitad: { flex: 1 },
 
-  // ── Botones generales ──
-  btnPrimario: { backgroundColor: '#0284C7', borderRadius: 100, padding: 17, alignItems: 'center', shadowColor: '#0284C7', shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
-  btnVerde:    { backgroundColor: '#059669', borderRadius: 100, padding: 17, alignItems: 'center', marginTop: 16, shadowColor: '#059669', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  btnPrimarioTxt: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
-  btnOutline:    { borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 13 },
-  btnOutlineTxt: { color: '#475569', fontWeight: '700', fontSize: 14 },
-  btnOff: { opacity: 0.5 },
+  btnPrimario: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 16, ...shadow(5),
+  },
+  btnPrimarioTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  btnVerde: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.success, borderRadius: radius.full, paddingVertical: 16, marginTop: 16, ...shadow(5),
+  },
+  btnOff: { opacity: 0.55 },
 
-  // ── Footer ──
-  btnCerrarSesion:    { alignItems: 'center', paddingVertical: 24, marginTop: 8 },
-  btnCerrarSesionTxt: { color: '#94a3b8', fontSize: 13 },
+  cierreBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginTop: 18, paddingVertical: 13,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface,
+  },
+  cierreTxt: { color: colors.textSoft, fontWeight: '700', fontSize: 14 },
 })
+

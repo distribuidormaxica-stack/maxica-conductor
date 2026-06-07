@@ -10,26 +10,32 @@ import {
   Platform,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../context/AuthContext'
+import { colors, radius, shadow } from '../theme'
 
 export default function LoginScreen() {
   const { iniciarSesion } = useAuth()
+  const insets = useSafeAreaInsets()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [cargando, setCargando] = useState(false)
   const [verPass, setVerPass]   = useState(false)
+  const [foco, setFoco]         = useState(null)
 
   async function onSubmit() {
     if (!email || !password) {
-      Alert.alert('Faltan datos', 'Ingresa tu email y contraseña.')
+      Alert.alert('Faltan datos', 'Ingresa tu correo y contraseña.')
       return
     }
     setCargando(true)
     try {
       await iniciarSesion(email.trim(), password)
     } catch (e) {
-      Alert.alert('Error al ingresar', e?.message ?? String(e))
+      Alert.alert('No pudimos iniciar sesión', e?.message ?? String(e))
     } finally {
       setCargando(false)
     }
@@ -40,157 +46,150 @@ export default function LoginScreen() {
       style={s.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Fondo dividido: azul arriba, gris claro abajo */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <View style={{ flex: 0.52, backgroundColor: '#0F172A' }} />
-        <View style={{ flex: 0.48, backgroundColor: '#F4F7FB' }} />
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-
-        {/* ══ HERO ══════════════════════════════════════════════════════════ */}
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ══ LOGO sobre blanco ══ */}
         <View style={s.hero}>
-          {/* Anillos decorativos detrás del logo */}
-          <View style={s.ring3} />
-          <View style={s.ring2} />
-          <View style={s.ring1} />
-          <View style={s.logoWrap}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={s.logo}
-              resizeMode="contain"
-            />
+          <Image
+            source={require('../../assets/logo.png')}
+            style={s.logo}
+            resizeMode="contain"
+          />
+          <View style={s.subPill}>
+            <Ionicons name="car-sport" size={14} color={colors.primary} />
+            <Text style={s.subPillTxt}>App de conductores</Text>
           </View>
-          <Text style={s.appSub}>Sistema de conductores</Text>
         </View>
 
-        {/* ══ FORM CARD ════════════════════════════════════════════════════ */}
-        <View style={s.formCard}>
-          <Text style={s.formTit}>Bienvenido</Text>
-          <Text style={s.formSub}>Inicia sesión para ver tu ruta del día</Text>
+        {/* ══ TARJETA DE LOGIN ══ */}
+        <View style={s.card}>
+          <Text style={s.title}>Bienvenido</Text>
+          <Text style={s.subtitle}>Inicia sesión para ver tu ruta del día</Text>
 
+          {/* Correo */}
           <Text style={s.label}>Correo electrónico</Text>
-          <TextInput
-            style={s.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="correo@empresa.com"
-            placeholderTextColor="#94a3b8"
-            returnKeyType="next"
-          />
-
-          <Text style={s.label}>Contraseña</Text>
-          <View style={s.inputWrap}>
+          <View style={[s.field, foco === 'email' && s.fieldFoco]}>
+            <Ionicons name="mail-outline" size={20} color={foco === 'email' ? colors.primary : colors.textMuted} />
             <TextInput
-              style={s.inputInner}
+              style={s.input}
+              value={email}
+              onChangeText={setEmail}
+              onFocus={() => setFoco('email')}
+              onBlur={() => setFoco(null)}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              placeholder="correo@empresa.com"
+              placeholderTextColor={colors.textMuted}
+              returnKeyType="next"
+            />
+          </View>
+
+          {/* Contraseña */}
+          <Text style={[s.label, { marginTop: 16 }]}>Contraseña</Text>
+          <View style={[s.field, foco === 'pass' && s.fieldFoco]}>
+            <Ionicons name="lock-closed-outline" size={20} color={foco === 'pass' ? colors.primary : colors.textMuted} />
+            <TextInput
+              style={s.input}
               value={password}
               onChangeText={setPassword}
+              onFocus={() => setFoco('pass')}
+              onBlur={() => setFoco(null)}
               secureTextEntry={!verPass}
               placeholder="••••••••"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.textMuted}
               returnKeyType="done"
               onSubmitEditing={onSubmit}
             />
-            <TouchableOpacity style={s.eyeBtn} onPress={() => setVerPass((v) => !v)}>
-              <Text style={s.eyeIcon}>{verPass ? '🙈' : '👁'}</Text>
+            <TouchableOpacity onPress={() => setVerPass((v) => !v)} hitSlop={10} style={s.eyeBtn}>
+              <Ionicons
+                name={verPass ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={colors.textSoft}
+              />
             </TouchableOpacity>
           </View>
 
+          {/* Botón */}
           <TouchableOpacity
             style={[s.btn, cargando && s.btnOff]}
             onPress={onSubmit}
             disabled={cargando}
             activeOpacity={0.85}
           >
-            <Text style={s.btnTxt}>{cargando ? 'Entrando…' : 'Entrar'}</Text>
+            {cargando ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={s.btnTxt}>Entrar</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
-        <Text style={s.aviso}>Acceso exclusivo para conductores autorizados</Text>
+        <View style={s.footer}>
+          <Ionicons name="shield-checkmark-outline" size={14} color={colors.textMuted} />
+          <Text style={s.footerTxt}>Acceso exclusivo para conductores autorizados</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 const s = StyleSheet.create({
-  root:   { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  root:   { flex: 1, backgroundColor: colors.surface },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
 
-  // ── Hero ──
-  hero: { alignItems: 'center', marginBottom: 28 },
+  hero: { alignItems: 'center', marginBottom: 32 },
+  logo: { width: 230, height: 96 },
+  subPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: radius.full,
+    marginTop: 10,
+  },
+  subPillTxt: { color: colors.primaryDark, fontSize: 12.5, fontWeight: '700', letterSpacing: 0.3 },
 
-  // Anillos decorativos concéntricos
-  ring3: {
-    position: 'absolute', width: 200, height: 200, borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.04)', top: -10,
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 24, paddingTop: 26, paddingBottom: 26,
+    ...shadow(8),
   },
-  ring2: {
-    position: 'absolute', width: 156, height: 156, borderRadius: 78,
-    backgroundColor: 'rgba(255,255,255,0.06)', top: 12,
-  },
-  ring1: {
-    position: 'absolute', width: 114, height: 114, borderRadius: 57,
-    backgroundColor: 'rgba(255,255,255,0.09)', top: 33,
-  },
-
-  logoWrap: {
-    width: 110, height: 110, borderRadius: 55,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14,
-  },
-  logo:   { width: 170, height: 68 },
-  appSub: { fontSize: 13, color: '#93c5fd', letterSpacing: 0.8, fontWeight: '600' },
-
-  // ── Form card ──
-  formCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    paddingHorizontal: 26, paddingTop: 28, paddingBottom: 26,
-    shadowColor: '#0F172A', shadowOpacity: 0.18, shadowRadius: 24, elevation: 10,
-  },
-  formTit: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 4 },
-  formSub: { fontSize: 13, color: '#94a3b8', marginBottom: 24 },
+  title:    { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 4 },
+  subtitle: { fontSize: 13.5, color: colors.textMuted, marginBottom: 22 },
 
   label: {
-    fontSize: 11, fontWeight: '700', color: '#64748b',
-    textTransform: 'uppercase', letterSpacing: 0.7,
-    marginBottom: 7, marginTop: 16,
+    fontSize: 11, fontWeight: '700', color: colors.textSoft,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8,
   },
-  input: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1.5, borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 15, color: '#0f172a',
+  field: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5, borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
   },
-
-  inputWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderWidth: 1.5, borderColor: '#e2e8f0',
-    borderRadius: 12,
-  },
-  inputInner: {
-    flex: 1,
-    paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 15, color: '#0f172a',
-  },
-  eyeBtn: { paddingHorizontal: 14, paddingVertical: 10 },
-  eyeIcon: { fontSize: 16 },
+  fieldFoco: { borderColor: colors.primary, backgroundColor: colors.surface },
+  input: { flex: 1, paddingVertical: 14, fontSize: 15.5, color: colors.text },
+  eyeBtn: { padding: 4 },
 
   btn: {
-    backgroundColor: '#0284C7',
-    borderRadius: 100,
-    padding: 17,
-    alignItems: 'center',
-    marginTop: 28,
-    shadowColor: '#0284C7', shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingVertical: 16,
+    marginTop: 26,
+    ...shadow(6),
   },
-  btnOff: { opacity: 0.5 },
+  btnOff: { opacity: 0.6 },
   btnTxt: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
 
-  aviso: { textAlign: 'center', color: '#94a3b8', fontSize: 12, marginTop: 28, lineHeight: 18 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 26 },
+  footerTxt: { textAlign: 'center', color: colors.textMuted, fontSize: 12 },
 })
