@@ -29,7 +29,7 @@
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.cerrato23.maxicaconductor",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,7 +43,8 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-font"
     ],
     "updates": {
       "url": "https://u.expo.dev/454e0d58-c82f-4218-a747-c7ac85475bc7"
