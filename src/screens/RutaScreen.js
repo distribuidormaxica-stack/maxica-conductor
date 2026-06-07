@@ -112,8 +112,35 @@ export default function RutaScreen({ navigation }) {
   useEffect(() => {
     if (ruta?.estado === 'en_ruta' && conductor) {
       iniciarTracking(conductor.id, ruta.id)
-        .then((sub) => { trackingRef.current = sub; setGpsActivo(true) })
-        .catch((e) => { console.warn('[GPS]', e?.message); setGpsActivo(false) })
+        .then((sub) => {
+          trackingRef.current = sub
+          setGpsActivo(true)
+          // Si solo se concedió "mientras uso la app", el despacho deja de verte
+          // al bloquear el teléfono o cambiar de app. Guiar a "Permitir todo el
+          // tiempo" en Ajustes (en Android 11+ no se puede conceder desde el cuadro).
+          if (sub && sub.background === false) {
+            Alert.alert(
+              'Activa "Permitir todo el tiempo"',
+              'Para que el despacho te vea en el mapa aunque bloquees el teléfono o uses otra app, abre Ajustes → Permisos → Ubicación y elige "Permitir todo el tiempo".',
+              [
+                { text: 'Ahora no', style: 'cancel' },
+                { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+              ],
+            )
+          }
+        })
+        .catch((e) => {
+          console.warn('[GPS]', e?.message)
+          setGpsActivo(false)
+          Alert.alert(
+            'Sin permiso de ubicación',
+            'No podemos registrar tu ruta para el despacho. Abre Ajustes → Permisos → Ubicación y concede el acceso.',
+            [
+              { text: 'Ahora no', style: 'cancel' },
+              { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+            ],
+          )
+        })
     } else {
       detenerTracking(trackingRef.current)
       trackingRef.current = null
