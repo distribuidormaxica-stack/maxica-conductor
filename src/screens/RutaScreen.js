@@ -147,7 +147,10 @@ export default function RutaScreen({ navigation }) {
       setGpsActivo(false)
     }
     return () => { detenerTracking(trackingRef.current); trackingRef.current = null }
-  }, [ruta?.estado, conductor])
+    // Incluye ruta?.id: al cargar una SEGUNDA ruta del día (aunque siga en
+    // estado en_ruta), reiniciamos el tracking para que los puntos se etiqueten
+    // con el id de la ruta nueva y no se mezclen con el despacho anterior.
+  }, [ruta?.estado, ruta?.id, conductor])
 
   // ── Timers en sitio ───────────────────────────────────────────────────────
   useEffect(() => {

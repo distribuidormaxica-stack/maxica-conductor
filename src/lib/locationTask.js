@@ -33,9 +33,14 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   } catch { return }
   if (!conductorId) return
 
+  // Solo registramos RECORRIDO (trayecto) si hay una ruta activa. Sin ruta_id no
+  // se puede atribuir el punto a un despacho y ensucia el mapa (puntos huérfanos
+  // que se mezclaban con otras rutas). La última posición (ubicaciones) sí se
+  // actualiza siempre, para el punto en vivo del despacho.
+  const rutaIdValido = rutaId && rutaId.length ? rutaId : null
   const filas = locations.map((loc) => ({
     conductor_id: conductorId,
-    ruta_id: rutaId || null,
+    ruta_id: rutaIdValido,
     lat: loc.coords.latitude,
     lng: loc.coords.longitude,
     velocidad_kmh: kmh(loc.coords.speed),
@@ -52,12 +57,13 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
       precision_m: ultima.coords.accuracy != null ? Math.round(ultima.coords.accuracy) : null,
       actualizado_en: new Date(ultima.timestamp || Date.now()).toISOString(),
     })
-    // Historial del recorrido
-    await supabase.from('trayecto').insert(filas)
+    // Historial del recorrido (solo con ruta activa)
+    if (rutaIdValido) await supabase.from('trayecto').insert(filas)
     // Si había puntos en cola por falta de red, mandarlos ahora
     await flushPendientes()
   } catch (e) {
     // Sin red: encolar para reintentar (máx 500 puntos para no crecer sin fin)
+    if (!rutaIdValido) return
     try {
       const raw = await AsyncStorage.getItem('gps.pendientes')
       const pend = raw ? JSON.parse(raw) : []
