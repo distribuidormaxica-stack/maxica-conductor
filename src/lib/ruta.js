@@ -4,22 +4,36 @@ import { fechaHoyVzla } from './fecha'
 export async function cargarRutaHoy(conductorId) {
   const hoy = fechaHoyVzla()
 
+  // Trae rutas de hoy o de días anteriores que NO se hayan finalizado
+  // (pendiente/en_ruta) — una ruta puede tardar varios días, y mientras el
+  // conductor o el admin no la cierren debe seguir apareciéndole. Las
+  // 'completada' solo se traen si son de hoy (para la pantalla de jornada
+  // completada); las de días pasados ya no reaparecen. No se traen rutas
+  // futuras (fecha > hoy).
   const { data: rutas, error: eR } = await supabase
     .from('rutas')
     .select('*')
     .eq('conductor_id', conductorId)
-    .eq('fecha', hoy)
+    .lte('fecha', hoy)
     .in('estado', ['pendiente', 'en_ruta', 'completada'])
-    .order('creado_en', { ascending: false })
+    .order('fecha', { ascending: true })
+    .order('creado_en', { ascending: true })
 
   if (eR) throw eR
   if (!rutas || rutas.length === 0) return null
 
-  // Si hay varias rutas en el día, priorizar: en_ruta > pendiente > completada
+  const activas = rutas.filter((r) => r.estado === 'en_ruta' || r.estado === 'pendiente')
+  const completadasHoy = rutas.filter((r) => r.estado === 'completada' && r.fecha === hoy)
+
+  // Prioridad: en_ruta más antigua (la que sigue abierta, incluso de días
+  // previos) > pendiente más antigua (vencida primero) > completada de hoy.
   const ruta =
-    rutas.find((r) => r.estado === 'en_ruta') ??
-    rutas.find((r) => r.estado === 'pendiente') ??
-    rutas[0]
+    activas.find((r) => r.estado === 'en_ruta') ??
+    activas.find((r) => r.estado === 'pendiente') ??
+    completadasHoy[completadasHoy.length - 1] ??
+    null
+
+  if (!ruta) return null
 
   const { data: paradas, error: eP } = await supabase
     .from('paradas')
@@ -61,15 +75,17 @@ export async function actualizarEstadoParada(paradaId, estado) {
   if (error) throw error
 }
 
-// Cargar la siguiente ruta pendiente del día (para múltiples despachos)
+// Cargar la siguiente ruta pendiente (múltiples despachos / rutas vencidas sin
+// finalizar de días previos). Incluye fecha <= hoy, no solo hoy.
 export async function cargarSiguienteRuta(conductorId, rutaActualId) {
   const hoy = fechaHoyVzla()
   const { data: rutas, error } = await supabase
     .from('rutas')
     .select('*')
     .eq('conductor_id', conductorId)
-    .eq('fecha', hoy)
+    .lte('fecha', hoy)
     .eq('estado', 'pendiente')
+    .order('fecha', { ascending: true })
     .order('creado_en', { ascending: true })
   if (error) throw error
   const siguiente = (rutas ?? []).find((r) => r.id !== rutaActualId)

@@ -427,7 +427,7 @@ export default function RutaScreen({ navigation }) {
             <Text style={st.okTit}>¡Jornada completada!</Text>
             <Text style={st.okSub}>{entregadas} de {total} entregas exitosas</Text>
             <TouchableOpacity
-              style={[st.btnPrimario, { marginTop: 16 }, accionando === 'siguiente' && st.btnOff]}
+              style={[st.btnPrimario, { marginTop: 18, alignSelf: 'stretch' }, accionando === 'siguiente' && st.btnOff]}
               onPress={onCargarSiguienteRuta}
               disabled={accionando === 'siguiente'}
               activeOpacity={0.85}
@@ -727,7 +727,7 @@ const st = StyleSheet.create({
 
   btnPrimario: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 16, ...shadow(5),
+    backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 16, paddingHorizontal: 28, ...shadow(5),
   },
   btnPrimarioTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
   btnVerde: {
