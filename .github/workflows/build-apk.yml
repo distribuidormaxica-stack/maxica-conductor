@@ -28,19 +28,19 @@ jobs:
 
       - name: Construir APK en EAS
         run: |
-          eas build --profile production --platform android --non-interactive 2>&1 | tee build_log.txt
-          grep -oP 'https://expo\.dev/artifacts/eas/[^\s]+\.apk' build_log.txt | head -1 > apk_url.txt
-          echo "URL encontrada:"
-          cat apk_url.txt
+          eas build --profile production --platform android --non-interactive --json > build.json
+          echo "--- build.json ---"; cat build.json
+          APK_URL=$(jq -r 'if type=="array" then .[0] else . end | .artifacts.applicationArchiveUrl // empty' build.json)
+          if [ -z "$APK_URL" ]; then
+            echo "ERROR: no se encontró applicationArchiveUrl en la salida de EAS"
+            cat build.json
+            exit 1
+          fi
+          echo "APK_URL=$APK_URL" >> "$GITHUB_ENV"
+          echo "URL: $APK_URL"
 
       - name: Descargar APK
         run: |
-          APK_URL=$(cat apk_url.txt)
-          if [ -z "$APK_URL" ]; then
-            echo "ERROR: No se encontró la URL del APK en el log"
-            cat build_log.txt
-            exit 1
-          fi
           curl -L "$APK_URL" -o maxica-conductor.apk
           ls -lh maxica-conductor.apk
 
