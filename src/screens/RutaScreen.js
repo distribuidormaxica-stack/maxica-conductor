@@ -19,6 +19,7 @@ import { distanciaMetros } from '../lib/geo'
 import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
+import { cargarEntregaConfig, ENTREGA_CONFIG_DEFAULT } from '../lib/entregaConfig'
 import { supabase } from '../lib/supabase'
 import { colors, radius, shadow } from '../theme'
 
@@ -53,8 +54,9 @@ function saludo() {
   return 'Buenas noches'
 }
 
-// Umbral de proximidad para la prueba de entrega (metros)
-const RADIO_ENTREGA_M = 150
+// El umbral de proximidad para la prueba de entrega (radio en metros) ahora lo
+// configura cada empresa en el panel (Configuración → Entregas); el default de
+// 150 m vive en ENTREGA_CONFIG_DEFAULT y aplica si el tenant no configuró nada.
 
 // Posición actual para la prueba de entrega. Best-effort: primero GPS fresco
 // (con timeout), luego la última posición conocida, y si todo falla retorna
@@ -114,9 +116,16 @@ export default function RutaScreen({ navigation }) {
   const [accionando, setAccionando] = useState(null)
   const [gpsActivo, setGpsActivo]   = useState(false)
   const [tiemposEnSitio, setTiemposEnSitio] = useState({})
+  const [entregaCfg, setEntregaCfg] = useState(ENTREGA_CONFIG_DEFAULT)
   const trackingRef  = useRef(null)
   const accionandoRef = useRef(null)
   const rutaIdRef    = useRef(null)
+
+  // Config de certificación de entrega del tenant (radio configurable)
+  useEffect(() => {
+    if (!conductor) return
+    cargarEntregaConfig().then(setEntregaCfg)
+  }, [conductor])
 
   const cargar = useCallback(async () => {
     if (!conductor) return
@@ -250,10 +259,11 @@ export default function RutaScreen({ navigation }) {
           extra = { entrega_lat: coords.latitude, entrega_lng: coords.longitude }
           const cliente = parada.clientes
           if (cliente?.lat && cliente?.lng) {
+            const radio = entregaCfg.radio_entrega_m ?? ENTREGA_CONFIG_DEFAULT.radio_entrega_m
             const distancia = distanciaMetros(coords.latitude, coords.longitude, cliente.lat, cliente.lng)
             extra.distancia_cliente_m = Math.round(distancia)
-            extra.fuera_de_sitio = distancia > RADIO_ENTREGA_M
-            if (distancia > RADIO_ENTREGA_M) {
+            extra.fuera_de_sitio = distancia > radio
+            if (distancia > radio) {
               const confirmado = await confirmarLejosDelCliente(distancia, cliente?.nombre, nuevoEstado)
               if (!confirmado) return
             }
