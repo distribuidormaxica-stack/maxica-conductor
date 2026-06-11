@@ -38,18 +38,29 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   // que se mezclaban con otras rutas). La última posición (ubicaciones) sí se
   // actualiza siempre, para el punto en vivo del despacho.
   const rutaIdValido = rutaId && rutaId.length ? rutaId : null
-  const filas = locations.map((loc) => ({
+  // Filtro de precisión: lecturas con error > 60 m son ruido (edificios,
+  // arranque en frío del GPS) — inflan el kilometraje y hacen "saltar" el
+  // punto en el mapa. No entran al recorrido.
+  const buenas = locations.filter(
+    (loc) => loc.coords.accuracy == null || loc.coords.accuracy <= 60,
+  )
+  const filas = buenas.map((loc) => ({
     conductor_id: conductorId,
     ruta_id: rutaIdValido,
     lat: loc.coords.latitude,
     lng: loc.coords.longitude,
     velocidad_kmh: kmh(loc.coords.speed),
   }))
-  const ultima = locations[locations.length - 1]
+  // Para el punto en vivo, la última lectura decente disponible; si todas
+  // vienen muy malas (> 120 m), mejor dejar la anterior que mostrar una errada.
+  const ultima = (buenas.length ? buenas : locations)[
+    (buenas.length ? buenas : locations).length - 1
+  ]
+  const ultimaUsable = ultima.coords.accuracy == null || ultima.coords.accuracy <= 120
 
   try {
     // Última posición conocida (para el mapa en vivo del despacho)
-    await supabase.from('ubicaciones').upsert({
+    if (ultimaUsable) await supabase.from('ubicaciones').upsert({
       conductor_id: conductorId,
       lat: ultima.coords.latitude,
       lng: ultima.coords.longitude,
@@ -57,13 +68,13 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
       precision_m: ultima.coords.accuracy != null ? Math.round(ultima.coords.accuracy) : null,
       actualizado_en: new Date(ultima.timestamp || Date.now()).toISOString(),
     })
-    // Historial del recorrido (solo con ruta activa)
-    if (rutaIdValido) await supabase.from('trayecto').insert(filas)
+    // Historial del recorrido (solo con ruta activa y lecturas decentes)
+    if (rutaIdValido && filas.length) await supabase.from('trayecto').insert(filas)
     // Si había puntos en cola por falta de red, mandarlos ahora
     await flushPendientes()
   } catch (e) {
     // Sin red: encolar para reintentar (máx 500 puntos para no crecer sin fin)
-    if (!rutaIdValido) return
+    if (!rutaIdValido || !filas.length) return
     try {
       const raw = await AsyncStorage.getItem('gps.pendientes')
       const pend = raw ? JSON.parse(raw) : []
