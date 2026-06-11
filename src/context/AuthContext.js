@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase, configIncompleta } from '../lib/supabase'
 import { registrarEvento } from '../lib/eventos'
+import { setConductorIdParaCrashes } from '../lib/crashLogger'
 
 const AuthContext = createContext(null)
 
@@ -33,6 +34,7 @@ export function AuthProvider({ children }) {
       if (!s) {
         setPerfil(null)
         setConductor(null)
+        setConductorIdParaCrashes(null)
         setCargando(false)
       }
     })
@@ -66,6 +68,8 @@ export function AuthProvider({ children }) {
         if (cRes.error) throw cRes.error
         setPerfil(pRes.data ?? null)
         setConductor(cRes.data ?? null)
+        // Enlaza los crashes de JS con el conductor actual (RLS de `eventos`).
+        setConductorIdParaCrashes(cRes.data?.id ?? null)
       } catch (e) {
         if (!activo) return
         setError(e?.message ?? String(e))

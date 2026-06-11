@@ -1,4 +1,9 @@
-name: Actualización OTA
+# Flujo OTA en dos etapas:
+#   1. Cada push a main publica al canal `preview` (solo teléfonos piloto).
+#   2. Tras validar en los pilotos, se promueve manualmente a `production`
+#      (toda la flota) ejecutando el workflow ota-production.yml
+#      (Actions → "Actualización OTA (producción)" → Run workflow).
+name: Actualización OTA (preview)
 
 on:
   push:
@@ -24,5 +29,5 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Publicar actualización
-        run: eas update --channel production --message "OTA update" --non-interactive
+      - name: Publicar actualización (preview)
+        run: eas update --channel preview --message "OTA update (preview)" --non-interactive

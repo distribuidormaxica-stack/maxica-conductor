@@ -62,9 +62,12 @@ export async function completarRuta(rutaId) {
   if (error) throw error
 }
 
-export async function actualizarEstadoParada(paradaId, estado) {
+// `extra` (opcional): campos adicionales a mezclar en el update — p. ej.
+// { entrega_lat, entrega_lng, distancia_cliente_m, fuera_de_sitio } para la
+// prueba de entrega con validación de proximidad.
+export async function actualizarEstadoParada(paradaId, estado, extra = null) {
   const ahora = new Date().toISOString()
-  const campos = { estado }
+  const campos = { estado, ...(extra ?? {}) }
   if (estado === 'en_sitio') campos.ts_llegada = ahora
   if (estado === 'entregado' || estado === 'fallido' || estado === 'rechazado') campos.ts_completada = ahora
 

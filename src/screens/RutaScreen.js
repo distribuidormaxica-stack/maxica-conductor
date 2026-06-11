@@ -12,8 +12,10 @@ import {
 } from 'react-native'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import * as Location from 'expo-location'
 import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
+import { distanciaMetros } from '../lib/geo'
 import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
@@ -49,6 +51,43 @@ function saludo() {
   if (h >= 5 && h < 12) return 'Buenos días'
   if (h >= 12 && h < 19) return 'Buenas tardes'
   return 'Buenas noches'
+}
+
+// Umbral de proximidad para la prueba de entrega (metros)
+const RADIO_ENTREGA_M = 150
+
+// Posición actual para la prueba de entrega. Best-effort: primero GPS fresco
+// (con timeout), luego la última posición conocida, y si todo falla retorna
+// null — NUNCA bloqueamos una entrega por falta de señal (zonas rurales).
+async function obtenerPosicionEntrega() {
+  try {
+    const pos = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout GPS')), 8000)),
+    ])
+    if (pos?.coords) return pos.coords
+  } catch (_) {}
+  try {
+    const pos = await Location.getLastKnownPositionAsync()
+    if (pos?.coords) return pos.coords
+  } catch (_) {}
+  return null
+}
+
+// Confirmación cuando el conductor marca una parada lejos del cliente.
+function confirmarLejosDelCliente(distancia, nombreCliente, nuevoEstado) {
+  const accion = nuevoEstado === 'entregado' ? 'entrega' : 'no entrega'
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Estás lejos del cliente',
+      `Estás a ~${Math.round(distancia)} m de ${nombreCliente ?? 'el cliente'}. ¿Confirmar ${accion} de todas formas?`,
+      [
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Confirmar', onPress: () => resolve(true) },
+      ],
+      { cancelable: false },
+    )
+  })
 }
 
 // ─── Tarjeta de métrica ─────────────────────────────────────────────────────
@@ -196,16 +235,42 @@ export default function RutaScreen({ navigation }) {
   }
 
   async function onMarcarParada(parada, nuevoEstado) {
+    if (accionandoRef.current) return
     accionandoRef.current = parada.id
     setAccionando(parada.id)
     setError(null)
     try {
-      await actualizarEstadoParada(parada.id, nuevoEstado)
+      // Prueba de entrega: solo para estados terminales capturamos la posición
+      // del conductor y validamos la distancia al cliente.
+      const esTerminal = nuevoEstado === 'entregado' || nuevoEstado === 'fallido' || nuevoEstado === 'rechazado'
+      let extra = null
+      if (esTerminal) {
+        const coords = await obtenerPosicionEntrega()
+        if (coords) {
+          extra = { entrega_lat: coords.latitude, entrega_lng: coords.longitude }
+          const cliente = parada.clientes
+          if (cliente?.lat && cliente?.lng) {
+            const distancia = distanciaMetros(coords.latitude, coords.longitude, cliente.lat, cliente.lng)
+            extra.distancia_cliente_m = Math.round(distancia)
+            extra.fuera_de_sitio = distancia > RADIO_ENTREGA_M
+            if (distancia > RADIO_ENTREGA_M) {
+              const confirmado = await confirmarLejosDelCliente(distancia, cliente?.nombre, nuevoEstado)
+              if (!confirmado) return
+            }
+          }
+        }
+      }
+      await actualizarEstadoParada(parada.id, nuevoEstado, extra)
       const tipo = nuevoEstado === 'en_sitio' ? 'llegada_parada' : `parada_${nuevoEstado}`
-      await registrarEvento(tipo, { cliente: parada.clientes?.nombre }, {
+      const payload = { cliente: parada.clientes?.nombre }
+      if (extra?.distancia_cliente_m != null) {
+        payload.distancia_cliente_m = extra.distancia_cliente_m
+        payload.fuera_de_sitio = extra.fuera_de_sitio
+      }
+      await registrarEvento(tipo, payload, {
         conductorId: conductor.id, rutaId: ruta.id, paradaId: parada.id,
       })
-      setParadas((prev) => prev.map((p) => p.id === parada.id ? { ...p, estado: nuevoEstado } : p))
+      setParadas((prev) => prev.map((p) => p.id === parada.id ? { ...p, estado: nuevoEstado, ...(extra ?? {}) } : p))
     } catch (e) { setError(e?.message ?? String(e)) }
     finally { accionandoRef.current = null; setAccionando(null) }
   }
@@ -245,17 +310,10 @@ export default function RutaScreen({ navigation }) {
     finally { setAccionando(null) }
   }
 
-  async function onMarcarRechazado(paradaId) {
-    if (accionandoRef.current) return
-    accionandoRef.current = paradaId
-    setAccionando(paradaId)
-    setError(null)
-    try {
-      await actualizarEstadoParada(paradaId, 'rechazado')
-      await registrarEvento('parada_rechazada', { paradaId }, { conductorId: conductor?.id, rutaId: ruta?.id, paradaId })
-      await recargarParadas()
-    } catch (e) { setError(e?.message ?? String(e)) }
-    finally { accionandoRef.current = null; setAccionando(null) }
+  // Delegamos en onMarcarParada para que el rechazo también capture la
+  // posición del conductor (prueba de entrega) y valide la distancia.
+  async function onMarcarRechazado(parada) {
+    await onMarcarParada(parada, 'rechazado')
   }
 
   function abrirNavegacion(lat, lng, nombre) {
@@ -554,7 +612,7 @@ export default function RutaScreen({ navigation }) {
                       </View>
                       <TouchableOpacity
                         style={[st.btnAccion, { backgroundColor: colors.orange }, enProceso && st.btnOff]}
-                        onPress={() => onMarcarRechazado(parada.id)}
+                        onPress={() => onMarcarRechazado(parada)}
                         disabled={!!accionando}
                         activeOpacity={0.85}
                       >

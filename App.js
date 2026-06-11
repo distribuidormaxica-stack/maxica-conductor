@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { Alert, View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import * as Updates from 'expo-updates'
 
 import { instalarLogger } from './src/lib/logger'
+import { instalarCrashLogger } from './src/lib/crashLogger'
 instalarLogger()
+instalarCrashLogger()
 
 // Registra la tarea de ubicación en segundo plano (debe correr al arrancar,
 // incluso en lanzamientos headless del servicio de ubicación).
@@ -157,7 +159,17 @@ export default function App() {
         const update = await Updates.checkForUpdateAsync()
         if (update.isAvailable) {
           await Updates.fetchUpdateAsync()
-          await Updates.reloadAsync()
+          // No recargar en silencio: avisar al conductor y dejarle elegir.
+          // Si elige "Más tarde", expo-updates aplicará la actualización
+          // automáticamente en el próximo arranque en frío.
+          Alert.alert(
+            'Actualización lista',
+            'Hay una nueva versión de la app. ¿Aplicarla ahora? Tardará unos segundos.',
+            [
+              { text: 'Más tarde' },
+              { text: 'Aplicar ahora', onPress: () => Updates.reloadAsync() },
+            ],
+          )
         }
       } catch {}
     }
