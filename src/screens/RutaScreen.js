@@ -20,6 +20,8 @@ import { registrarEvento } from '../lib/eventos'
 import { detenerTracking, iniciarTracking } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { cargarEntregaConfig, ENTREGA_CONFIG_DEFAULT } from '../lib/entregaConfig'
+import { subirArchivoEntrega } from '../lib/entregas'
+import FirmaModal from '../components/FirmaModal'
 import { supabase } from '../lib/supabase'
 import { colors, radius, shadow } from '../theme'
 
@@ -76,6 +78,11 @@ async function obtenerPosicionEntrega() {
   return null
 }
 
+// ¿La config del tenant exige este certificado (firma/foto) para la entrega?
+function exigeCertificado(modo, fueraDeSitio) {
+  return modo === 'siempre' || (modo === 'fuera_de_sitio' && fueraDeSitio === true)
+}
+
 // Confirmación cuando el conductor marca una parada lejos del cliente.
 function confirmarLejosDelCliente(distancia, nombreCliente, nuevoEstado) {
   const accion = nuevoEstado === 'entregado' ? 'entrega' : 'no entrega'
@@ -117,9 +124,25 @@ export default function RutaScreen({ navigation }) {
   const [gpsActivo, setGpsActivo]   = useState(false)
   const [tiemposEnSitio, setTiemposEnSitio] = useState({})
   const [entregaCfg, setEntregaCfg] = useState(ENTREGA_CONFIG_DEFAULT)
+  const [firmaVisible, setFirmaVisible] = useState(false)
+  const [firmaCliente, setFirmaCliente] = useState('')
   const trackingRef  = useRef(null)
   const accionandoRef = useRef(null)
   const rutaIdRef    = useRef(null)
+  const firmaResolverRef = useRef(null)
+
+  // Abre el modal de firma y espera el resultado (base64 PNG, o null si canceló)
+  function pedirFirma(parada) {
+    setFirmaCliente(parada.clientes?.nombre ?? '')
+    setFirmaVisible(true)
+    return new Promise((resolve) => { firmaResolverRef.current = resolve })
+  }
+  function cerrarFirma(resultado) {
+    setFirmaVisible(false)
+    const resolver = firmaResolverRef.current
+    firmaResolverRef.current = null
+    resolver?.(resultado)
+  }
 
   // Config de certificación de entrega del tenant (radio configurable)
   useEffect(() => {
@@ -270,6 +293,19 @@ export default function RutaScreen({ navigation }) {
           }
         }
       }
+      // Firma del cliente (solo entregas exitosas, según config del tenant).
+      // Si el chofer cancela el modal, la parada NO se marca.
+      if (nuevoEstado === 'entregado' && exigeCertificado(entregaCfg.firma_modo, extra?.fuera_de_sitio)) {
+        const firma = await pedirFirma(parada)
+        if (firma == null) return
+        const firmaPath = await subirArchivoEntrega(parada, firma, 'firma')
+        if (firmaPath) {
+          extra = { ...(extra ?? {}), firma_path: firmaPath }
+        } else {
+          Alert.alert('Sin conexión', 'No se pudo subir la firma; la entrega se registrará sin ella.')
+        }
+      }
+
       await actualizarEstadoParada(parada.id, nuevoEstado, extra)
       const tipo = nuevoEstado === 'en_sitio' ? 'llegada_parada' : `parada_${nuevoEstado}`
       const payload = { cliente: parada.clientes?.nombre }
@@ -645,6 +681,13 @@ export default function RutaScreen({ navigation }) {
           </TouchableOpacity>
         ) : null}
       </ScrollView>
+
+      <FirmaModal
+        visible={firmaVisible}
+        clienteNombre={firmaCliente}
+        onConfirmar={(base64) => cerrarFirma(base64)}
+        onCancelar={() => cerrarFirma(null)}
+      />
     </View>
   )
 }
