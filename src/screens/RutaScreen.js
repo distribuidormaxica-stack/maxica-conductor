@@ -21,6 +21,7 @@ import { detenerTracking, iniciarTracking } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { cargarEntregaConfig, ENTREGA_CONFIG_DEFAULT } from '../lib/entregaConfig'
 import { subirArchivoEntrega } from '../lib/entregas'
+import { capturarFotoEntrega } from '../lib/foto'
 import FirmaModal from '../components/FirmaModal'
 import { supabase } from '../lib/supabase'
 import { colors, radius, shadow } from '../theme'
@@ -303,6 +304,21 @@ export default function RutaScreen({ navigation }) {
           extra = { ...(extra ?? {}), firma_path: firmaPath }
         } else {
           Alert.alert('Sin conexión', 'No se pudo subir la firma; la entrega se registrará sin ella.')
+        }
+      }
+
+      // Foto de la entrega (requiere APK 1.3.0+; en versiones sin cámara se
+      // omite). Si el chofer cancela la cámara, la parada NO se marca.
+      if (nuevoEstado === 'entregado' && exigeCertificado(entregaCfg.foto_modo, extra?.fuera_de_sitio)) {
+        const foto = await capturarFotoEntrega()
+        if (foto.cancelada) return
+        if (foto.base64) {
+          const fotoPath = await subirArchivoEntrega(parada, foto.base64, 'foto')
+          if (fotoPath) {
+            extra = { ...(extra ?? {}), foto_path: fotoPath }
+          } else {
+            Alert.alert('Sin conexión', 'No se pudo subir la foto; la entrega se registrará sin ella.')
+          }
         }
       }
 

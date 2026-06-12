@@ -2,7 +2,7 @@
   "expo": {
     "name": "maxica-conductor",
     "slug": "maxica-conductor",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -29,7 +29,7 @@
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.cerrato23.maxicaconductor",
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,7 +44,13 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Maxica usa la cámara para tomar la foto de prueba de entrega."
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/454e0d58-c82f-4218-a747-c7ac85475bc7"
