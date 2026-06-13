@@ -50,6 +50,11 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
     lat: loc.coords.latitude,
     lng: loc.coords.longitude,
     velocidad_kmh: kmh(loc.coords.speed),
+    // Timestamp REAL de la lectura GPS. Sin esto, creado_en lo pone la BD con
+    // now() y TODAS las filas de un mismo INSERT (Android entrega las lecturas
+    // en lote) quedan con el mismo timestamp; eso impedía estimar velocidad y
+    // calcular bien los km recorridos en el panel.
+    creado_en: new Date(loc.timestamp || Date.now()).toISOString(),
   }))
   // Para el punto en vivo, la última lectura decente disponible; si todas
   // vienen muy malas (> 120 m), mejor dejar la anterior que mostrar una errada.
