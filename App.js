@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar'
 import { Alert, View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Updates from 'expo-updates'
 
 import { instalarLogger } from './src/lib/logger'
@@ -43,6 +43,9 @@ function RutaStack() {
 
 // Navegación principal con barra inferior: Ruta y Mapa.
 function MainTabs() {
+  // En Android 15 / edge-to-edge la barra de tabs se dibuja sobre los botones
+  // del sistema (atrás/inicio). Sumamos el inset inferior para que no se peguen.
+  const insets = useSafeAreaInsets()
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -52,7 +55,13 @@ function MainTabs() {
         headerTintColor: '#fff',
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { backgroundColor: '#fff', borderTopColor: colors.border, height: 62, paddingBottom: 8, paddingTop: 6 },
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopColor: colors.border,
+          height: 62 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
+          paddingTop: 6,
+        },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
         tabBarIcon: ({ color, size, focused }) => {
           const icon = route.name === 'MiRuta'
