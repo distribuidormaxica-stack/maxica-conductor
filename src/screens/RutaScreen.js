@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
 import { distanciaMetros } from '../lib/geo'
 import { registrarEvento } from '../lib/eventos'
-import { detenerTracking, iniciarTracking } from '../lib/gps'
+import { detenerTracking, iniciarTracking, pedirExencionBateria } from '../lib/gps'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { cargarEntregaConfig, ENTREGA_CONFIG_DEFAULT } from '../lib/entregaConfig'
 import { subirArchivoEntrega } from '../lib/entregas'
@@ -204,6 +204,8 @@ export default function RutaScreen({ navigation }) {
         .then((sub) => {
           trackingRef.current = sub
           setGpsActivo(true)
+          // Una sola vez: pedir que el sistema no mate el rastreo por batería.
+          pedirExencionBateria()
           if (sub && sub.background === false) {
             Alert.alert(
               'Activa "Permitir todo el tiempo"',

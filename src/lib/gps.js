@@ -1,6 +1,30 @@
 import * as Location from 'expo-location'
+import * as IntentLauncher from 'expo-intent-launcher'
+import { Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LOCATION_TASK } from './locationTask'
+
+const PACKAGE = 'com.cerrato23.maxicaconductor'
+
+// Pide al sistema EXCLUIR la app de la optimización de batería (una sola vez).
+// Es la causa #1 de "sin señal" en Android: aunque haya foreground service, los
+// fabricantes (Xiaomi, Tecno, Infinix, Samsung…) matan el servicio para ahorrar
+// batería salvo que la app esté exenta. Defensivo: si algo falla, no estorba al
+// tracking. Se pregunta una sola vez (flag en AsyncStorage) para no fastidiar.
+export async function pedirExencionBateria() {
+  if (Platform.OS !== 'android') return
+  try {
+    if (await AsyncStorage.getItem('bateria.exencionPedida')) return
+    await IntentLauncher.startActivityAsync(
+      'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+      { data: `package:${PACKAGE}` },
+    )
+    await AsyncStorage.setItem('bateria.exencionPedida', '1')
+  } catch {
+    // Algunos teléfonos no exponen este intent: no pasa nada, el chofer puede
+    // desactivar la optimización a mano desde Ajustes.
+  }
+}
 
 // Pide permiso de primer plano (obligatorio) y de segundo plano (para seguir
 // rastreando con la app minimizada o el teléfono bloqueado).
