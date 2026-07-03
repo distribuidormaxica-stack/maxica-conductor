@@ -51,7 +51,10 @@ export async function iniciarTracking(conductorId, rutaId = null) {
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
     timeInterval: 15000,   // cada 15 s
-    distanceInterval: 20,  // o cada 20 m
+    // 0 = sin umbral de distancia: el chofer DETENIDO sigue reportando cada
+    // 15 s. Con 20 m, un camión parado 20 min descargando caía a "Sin señal"
+    // en el panel siendo falso (causa #3 del diagnóstico de tracking).
+    distanceInterval: 0,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     foregroundService: {

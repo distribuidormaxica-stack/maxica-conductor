@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
-import { Alert, View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { Alert, AppState, View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -19,7 +19,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
 import { AuthProvider, useAuth } from './src/context/AuthContext'
-import { configIncompleta } from './src/lib/supabase'
+import { configIncompleta, supabase } from './src/lib/supabase'
 import LoginScreen from './src/screens/LoginScreen'
 import RutaScreen from './src/screens/RutaScreen'
 import DebugScreen from './src/screens/DebugScreen'
@@ -161,6 +161,20 @@ function Rutas() {
 }
 
 export default function App() {
+  // El auto-refresh del token de Supabase corre con timers que Android congela
+  // en segundo plano: el JWT vencía y el chofer "desaparecía" del panel hasta
+  // reabrir la app. Ligarlo al estado de la app garantiza refresh al volver;
+  // en segundo plano, la tarea GPS llama getSession() antes de cada subida.
+  useEffect(() => {
+    if (!supabase) return
+    supabase.auth.startAutoRefresh()
+    const sub = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') supabase.auth.startAutoRefresh()
+      else supabase.auth.stopAutoRefresh()
+    })
+    return () => sub.remove()
+  }, [])
+
   useEffect(() => {
     if (__DEV__) return
     async function verificarActualizacion() {

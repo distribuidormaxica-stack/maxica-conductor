@@ -13,6 +13,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Location from 'expo-location'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
 import { distanciaMetros } from '../lib/geo'
@@ -123,6 +124,9 @@ export default function RutaScreen({ navigation }) {
   const [error, setError]           = useState(null)
   const [accionando, setAccionando] = useState(null)
   const [gpsActivo, setGpsActivo]   = useState(false)
+  // Salud REAL de la subida GPS (escrita por la tarea de fondo en cada intento):
+  // el chip del header deja de decir "GPS activo" solo porque el task arrancó.
+  const [gpsSalud, setGpsSalud]     = useState(null) // { haceSeg, cola, error }
   const [tiemposEnSitio, setTiemposEnSitio] = useState({})
   const [entregaCfg, setEntregaCfg] = useState(ENTREGA_CONFIG_DEFAULT)
   const [firmaVisible, setFirmaVisible] = useState(false)
@@ -239,6 +243,31 @@ export default function RutaScreen({ navigation }) {
     // estado en_ruta), reiniciamos el tracking para que los puntos se etiqueten
     // con el id de la ruta nueva y no se mezclen con el despacho anterior.
   }, [ruta?.estado, ruta?.id, conductor])
+
+  // Sondea la salud real de la subida GPS que escribe la tarea de fondo:
+  // gps.ultimaSubidaOk (ISO), gps.ultimoError, gps.colaPendientes.
+  useEffect(() => {
+    if (ruta?.estado !== 'en_ruta') { setGpsSalud(null); return }
+    let vivo = true
+    async function leer() {
+      try {
+        const [ok, err, cola] = await Promise.all([
+          AsyncStorage.getItem('gps.ultimaSubidaOk'),
+          AsyncStorage.getItem('gps.ultimoError'),
+          AsyncStorage.getItem('gps.colaPendientes'),
+        ])
+        if (!vivo) return
+        setGpsSalud({
+          haceSeg: ok ? Math.max(0, Math.round((Date.now() - new Date(ok).getTime()) / 1000)) : null,
+          error: err,
+          cola: Number(cola) || 0,
+        })
+      } catch {}
+    }
+    leer()
+    const t = setInterval(leer, 15000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [ruta?.estado])
 
   // ── Timers en sitio ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -431,12 +460,27 @@ export default function RutaScreen({ navigation }) {
           </Text>
         </View>
         <View style={st.headerDer}>
-          {ruta?.estado === 'en_ruta' && (
-            <View style={[st.gpsChip, !gpsActivo && st.gpsChipOff]}>
-              <Ionicons name={gpsActivo ? 'radio' : 'cloud-offline'} size={13} color={gpsActivo ? '#34D399' : '#FCA5A5'} />
-              <Text style={[st.gpsTxt, !gpsActivo && st.gpsTxtOff]}>{gpsActivo ? 'GPS activo' : 'Sin GPS'}</Text>
-            </View>
-          )}
+          {ruta?.estado === 'en_ruta' && (() => {
+            // Chip honesto: verde = subidas llegando de verdad; ámbar =
+            // reintentando/atrasado; rojo = sin subir hace rato. El chofer
+            // puede leerle al despachador exactamente qué pasa.
+            let icono = 'cloud-offline', color = '#FCA5A5', texto = 'Sin GPS', off = true
+            if (gpsSalud?.cola > 0) {
+              icono = 'sync'; color = '#FCD34D'; texto = `Reintentando (${gpsSalud.cola})`; off = false
+            } else if (gpsSalud?.haceSeg != null && gpsSalud.haceSeg <= 90) {
+              icono = 'radio'; color = '#34D399'; texto = `GPS ↑ hace ${gpsSalud.haceSeg}s`; off = false
+            } else if (gpsSalud?.haceSeg != null && gpsSalud.haceSeg <= 300) {
+              icono = 'time'; color = '#FCD34D'; texto = `GPS hace ${Math.round(gpsSalud.haceSeg / 60)}m`; off = false
+            } else if (gpsActivo && gpsSalud?.haceSeg == null && !gpsSalud?.error) {
+              icono = 'radio'; color = '#FCD34D'; texto = 'GPS iniciando…'; off = false
+            }
+            return (
+              <View style={[st.gpsChip, off && st.gpsChipOff]}>
+                <Ionicons name={icono} size={13} color={color} />
+                <Text style={[st.gpsTxt, off && st.gpsTxtOff]}>{texto}</Text>
+              </View>
+            )
+          })()}
           <TouchableOpacity style={st.iconBtn} onPress={confirmarSalir} hitSlop={8}>
             <Ionicons name="log-out-outline" size={20} color="#fff" />
           </TouchableOpacity>
