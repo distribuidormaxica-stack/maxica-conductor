@@ -58,7 +58,7 @@ export async function iniciarTracking(conductorId, rutaId = null) {
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     foregroundService: {
-      notificationTitle: 'Maxica — seguimiento activo',
+      notificationTitle: 'MaxiRutas — seguimiento activo',
       notificationBody: 'Registrando tu ruta para el despacho.',
       notificationColor: '#0284C7',
     },

@@ -114,7 +114,7 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   if (!haySesion) {
     // Sin sesión no se puede subir nada (RLS lo rechazaría): encolar y avisar.
     const cola = await encolar(filasTrayecto)
-    await marcarError('sesión vencida — reabre la app Maxica', cola)
+    await marcarError('sesión vencida — reabre la app MaxiRutas', cola)
     return
   }
 
