@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase, configIncompleta } from '../lib/supabase'
 import { registrarEvento } from '../lib/eventos'
 import { setConductorIdParaCrashes } from '../lib/crashLogger'
+import { reclamarDispositivo } from '../lib/dispositivo'
 
 const AuthContext = createContext(null)
 
@@ -11,6 +12,9 @@ export function AuthProvider({ children }) {
   const [conductor, setConductor] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
+  // Candado de dispositivo: 'verificando' | 'ok' | 'bloqueado'.
+  // 'bloqueado' = la cuenta ya está vinculada a otro teléfono.
+  const [dispositivoEstado, setDispositivoEstado] = useState('verificando')
 
   // Marcar cuando acabamos de hacer signIn (no sesión restaurada) para
   // registrar el evento 'login' una vez el conductor esté cargado.
@@ -35,6 +39,7 @@ export function AuthProvider({ children }) {
         setPerfil(null)
         setConductor(null)
         setConductorIdParaCrashes(null)
+        setDispositivoEstado('verificando')
         setCargando(false)
       }
     })
@@ -70,6 +75,17 @@ export function AuthProvider({ children }) {
         setConductor(cRes.data ?? null)
         // Enlaza los crashes de JS con el conductor actual (RLS de `eventos`).
         setConductorIdParaCrashes(cRes.data?.id ?? null)
+
+        // Candado de dispositivo: solo aplica a conductores ya registrados.
+        // fail-open ante error de red (no bloqueamos al conductor legítimo por
+        // un glitch); solo 'otro_dispositivo' bloquea.
+        if (cRes.data) {
+          const rd = await reclamarDispositivo()
+          if (!activo) return
+          setDispositivoEstado(rd.estado === 'otro_dispositivo' ? 'bloqueado' : 'ok')
+        } else {
+          setDispositivoEstado('ok')
+        }
       } catch (e) {
         if (!activo) return
         setError(e?.message ?? String(e))
@@ -123,6 +139,7 @@ export function AuthProvider({ children }) {
         conductor,
         cargando,
         error,
+        dispositivoEstado,
         iniciarSesion,
         cerrarSesion,
       }}

@@ -98,7 +98,7 @@ function Cargando() {
 }
 
 function Rutas() {
-  const { session, perfil, conductor, cargando, cerrarSesion } = useAuth()
+  const { session, perfil, conductor, cargando, dispositivoEstado, cerrarSesion } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -149,6 +149,22 @@ function Rutas() {
         <Text style={s.nota}>
           Tu perfil es conductor pero no estás enlazado a la tabla conductores.
           Contacta al admin.
+        </Text>
+        <TouchableOpacity style={s.btnSalir} onPress={cerrarSesion}>
+          <Text style={s.btnSalirTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  // Candado de dispositivo: la cuenta ya está activa en otro teléfono.
+  if (dispositivoEstado === 'bloqueado') {
+    return (
+      <View style={s.centro}>
+        <Text style={s.titErr}>Cuenta activa en otro teléfono</Text>
+        <Text style={s.nota}>
+          Esta cuenta ya está vinculada a otro dispositivo. Pídele al despacho que
+          {'\n'}"libere el dispositivo" desde el panel para poder usar este teléfono.
         </Text>
         <TouchableOpacity style={s.btnSalir} onPress={cerrarSesion}>
           <Text style={s.btnSalirTxt}>Cerrar sesión</Text>
