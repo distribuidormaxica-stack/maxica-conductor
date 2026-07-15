@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Linking,
   RefreshControl,
   ScrollView,
@@ -18,7 +19,8 @@ import { useAuth } from '../context/AuthContext'
 import { fechaDisplayVzla } from '../lib/fecha'
 import { distanciaMetros } from '../lib/geo'
 import { registrarEvento } from '../lib/eventos'
-import { detenerTracking, iniciarTracking, pedirExencionBateria } from '../lib/gps'
+import { detenerTracking, estaTrackingActivo, iniciarTracking, pedirExencionBateria } from '../lib/gps'
+import { flushPendientes } from '../lib/locationTask'
 import { activarRuta, actualizarEstadoParada, cargarRutaHoy, completarRuta, cargarSiguienteRuta } from '../lib/ruta'
 import { cargarEntregaConfig, ENTREGA_CONFIG_DEFAULT } from '../lib/entregaConfig'
 import { subirArchivoEntrega } from '../lib/entregas'
@@ -135,6 +137,8 @@ export default function RutaScreen({ navigation }) {
   const accionandoRef = useRef(null)
   const rutaIdRef    = useRef(null)
   const firmaResolverRef = useRef(null)
+  // Rate-limit del watchdog GPS: no reiniciar el tracking más de 1 vez cada 2 min
+  const ultimoReinicioGpsRef = useRef(0)
 
   // Abre el modal de firma y espera el resultado (base64 PNG, o null si canceló)
   function pedirFirma(parada) {
@@ -208,6 +212,9 @@ export default function RutaScreen({ navigation }) {
         .then((sub) => {
           trackingRef.current = sub
           setGpsActivo(true)
+          // Arranque cuenta como "reinicio" para el rate-limit del watchdog:
+          // le da 2 min de gracia al task para producir su primer latido.
+          ultimoReinicioGpsRef.current = Date.now()
           // Una sola vez: pedir que el sistema no mate el rastreo por batería.
           pedirExencionBateria()
           if (sub && sub.background === false) {
@@ -244,6 +251,46 @@ export default function RutaScreen({ navigation }) {
     // con el id de la ruta nueva y no se mezclen con el despacho anterior.
   }, [ruta?.estado, ruta?.id, conductor])
 
+  // WATCHDOG GPS: si el sistema mató o congeló el servicio de ubicación (ahorro
+  // de batería agresivo de Xiaomi/Tecno/Samsung…), nadie lo reiniciaba y el
+  // chofer quedaba "Sin señal" en el panel por horas aunque siguiera repartiendo.
+  // Detecta por el latido gps.ultimoTick (lo escribe la tarea en CADA lote de
+  // lecturas, haya red o no): latido viejo = el task no corre → reiniciar.
+  const vigilarGps = useCallback(async ({ manual = false } = {}) => {
+    try {
+      if (!conductor || !rutaIdRef.current) return false
+      if (!trackingRef.current && !manual) return false // nunca arrancó (sin permiso): no insistir solo
+      const tick = await AsyncStorage.getItem('gps.ultimoTick')
+      const tickSeg = tick ? (Date.now() - new Date(tick).getTime()) / 1000 : null
+      if (!manual) {
+        if (tickSeg != null && tickSeg < 180) return false // el task vive: nada que hacer
+        if (Date.now() - ultimoReinicioGpsRef.current < 120000) return false
+      }
+      ultimoReinicioGpsRef.current = Date.now()
+      const taskVivo = await estaTrackingActivo()
+      await iniciarTracking(conductor.id, rutaIdRef.current)
+      trackingRef.current = trackingRef.current ?? { background: null }
+      setGpsActivo(true)
+      // Bitácora para el despacho: queda constancia de cada reinicio y su causa.
+      registrarEvento(
+        'gps_reiniciado',
+        {
+          motivo: manual ? 'manual' : taskVivo ? 'sin_lecturas' : 'servicio_muerto',
+          ultimo_latido_hace_seg: tickSeg != null ? Math.round(tickSeg) : null,
+        },
+        { conductorId: conductor.id, rutaId: rutaIdRef.current },
+      ).catch(() => {})
+      // Servicio muerto = la exención de batería no está concedida: volver a
+      // pedirla (gps.js la limita a 1 vez por semana).
+      if (!taskVivo) pedirExencionBateria({ reintentar: true })
+      // Si la tarea murió con puntos en cola, vaciarla ahora que la app está al frente.
+      flushPendientes().catch(() => {})
+      return true
+    } catch {
+      return false
+    }
+  }, [conductor])
+
   // Sondea la salud real de la subida GPS que escribe la tarea de fondo:
   // gps.ultimaSubidaOk (ISO), gps.ultimoError, gps.colaPendientes.
   useEffect(() => {
@@ -263,11 +310,15 @@ export default function RutaScreen({ navigation }) {
           cola: Number(cola) || 0,
         })
       } catch {}
+      vigilarGps()
     }
     leer()
     const t = setInterval(leer, 15000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [ruta?.estado])
+    // Al volver la app al frente (el chofer la abre para marcar una entrega),
+    // chequear de inmediato: es el mejor momento para auto-repararse.
+    const subApp = AppState.addEventListener('change', (e) => { if (e === 'active') leer() })
+    return () => { vivo = false; clearInterval(t); subApp.remove() }
+  }, [ruta?.estado, vigilarGps])
 
   // ── Timers en sitio ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -312,6 +363,17 @@ export default function RutaScreen({ navigation }) {
         const coords = await obtenerPosicionEntrega()
         if (coords) {
           extra = { entrega_lat: coords.latitude, entrega_lng: coords.longitude }
+          // Red de seguridad: aunque la tarea GPS de fondo esté muerta, cada
+          // entrega refresca la "última posición" del panel. Best-effort, sin
+          // bloquear el marcado.
+          supabase.from('ubicaciones').upsert({
+            conductor_id: conductor.id,
+            lat: coords.latitude,
+            lng: coords.longitude,
+            velocidad_kmh: null,
+            precision_m: coords.accuracy != null ? Math.round(coords.accuracy) : null,
+            actualizado_en: new Date().toISOString(),
+          }).then(() => {}, () => {})
           const cliente = parada.clientes
           if (cliente?.lat && cliente?.lng) {
             const radio = entregaCfg.radio_entrega_m ?? ENTREGA_CONFIG_DEFAULT.radio_entrega_m
@@ -474,11 +536,25 @@ export default function RutaScreen({ navigation }) {
             } else if (gpsActivo && gpsSalud?.haceSeg == null && !gpsSalud?.error) {
               icono = 'radio'; color = '#FCD34D'; texto = 'GPS iniciando…'; off = false
             }
+            // Con la señal caída, el chip se vuelve botón: reinicia el tracking a mano.
+            const conProblema = off || (gpsSalud?.haceSeg != null && gpsSalud.haceSeg > 300)
             return (
-              <View style={[st.gpsChip, off && st.gpsChipOff]}>
+              <TouchableOpacity
+                style={[st.gpsChip, off && st.gpsChipOff]}
+                disabled={!conProblema}
+                onPress={async () => {
+                  const ok = await vigilarGps({ manual: true })
+                  Alert.alert(
+                    ok ? 'GPS reiniciado' : 'No se pudo reiniciar',
+                    ok
+                      ? 'El rastreo se reactivó. Si vuelve a caerse, desactiva el ahorro de batería para MaxiRutas en Ajustes.'
+                      : 'Revisa que la ubicación esté encendida y que MaxiRutas tenga permiso "Permitir todo el tiempo".',
+                  )
+                }}
+              >
                 <Ionicons name={icono} size={13} color={color} />
                 <Text style={[st.gpsTxt, off && st.gpsTxtOff]}>{texto}</Text>
-              </View>
+              </TouchableOpacity>
             )
           })()}
           <TouchableOpacity style={st.iconBtn} onPress={confirmarSalir} hitSlop={8}>

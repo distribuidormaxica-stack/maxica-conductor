@@ -11,19 +11,35 @@ const PACKAGE = 'com.cerrato23.maxicaconductor'
 // fabricantes (Xiaomi, Tecno, Infinix, Samsung…) matan el servicio para ahorrar
 // batería salvo que la app esté exenta. Defensivo: si algo falla, no estorba al
 // tracking. Se pregunta una sola vez (flag en AsyncStorage) para no fastidiar.
-export async function pedirExencionBateria() {
+export async function pedirExencionBateria({ reintentar = false } = {}) {
   if (Platform.OS !== 'android') return
   try {
-    if (await AsyncStorage.getItem('bateria.exencionPedida')) return
+    const pedidaEn = await AsyncStorage.getItem('bateria.exencionPedidaEn')
+    const yaPedida = pedidaEn || (await AsyncStorage.getItem('bateria.exencionPedida'))
+    if (yaPedida && !reintentar) return
+    // Reintento: solo cuando el watchdog detectó que el sistema MATÓ el servicio
+    // (señal de que la exención no está concedida), y máximo una vez por semana
+    // para no fastidiar al chofer.
+    if (yaPedida && reintentar) {
+      const hace = pedidaEn ? Date.now() - new Date(pedidaEn).getTime() : Infinity
+      if (hace < 7 * 24 * 60 * 60 * 1000) return
+    }
     await IntentLauncher.startActivityAsync(
       'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
       { data: `package:${PACKAGE}` },
     )
     await AsyncStorage.setItem('bateria.exencionPedida', '1')
+    await AsyncStorage.setItem('bateria.exencionPedidaEn', new Date().toISOString())
   } catch {
     // Algunos teléfonos no exponen este intent: no pasa nada, el chofer puede
     // desactivar la optimización a mano desde Ajustes.
   }
+}
+
+// ¿El servicio de tracking sigue registrado en el sistema? Si devuelve false
+// con una ruta activa, el fabricante lo mató (ahorro de batería agresivo).
+export async function estaTrackingActivo() {
+  try { return await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK) } catch { return false }
 }
 
 // Pide permiso de primer plano (obligatorio) y de segundo plano (para seguir
@@ -44,6 +60,9 @@ export async function iniciarTracking(conductorId, rutaId = null) {
 
   await AsyncStorage.setItem('gps.conductorId', String(conductorId))
   await AsyncStorage.setItem('gps.rutaId', rutaId ? String(rutaId) : '')
+  // Sembrar el latido con "ahora": sin esto, el watchdog vería el tick viejo de
+  // la ruta anterior (o ninguno) y reiniciaría el tracking recién arrancado.
+  await AsyncStorage.setItem('gps.ultimoTick', new Date().toISOString())
 
   const yaActivo = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false)
   if (yaActivo) await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {})

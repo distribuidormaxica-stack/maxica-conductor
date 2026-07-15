@@ -41,7 +41,9 @@ async function encolar(filas) {
   }
 }
 
-async function flushPendientes() {
+// Exportada: el watchdog de RutaScreen también la llama al volver la app al
+// frente — si la tarea de fondo murió, la cola quedaba presa para siempre.
+export async function flushPendientes() {
   try {
     const raw = await AsyncStorage.getItem('gps.pendientes')
     const pend = raw ? JSON.parse(raw) : []
@@ -59,6 +61,11 @@ async function flushPendientes() {
 
 TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   if (error) { console.warn('[bg-gps]', error.message); return }
+  // Latido: prueba de que el task VIVE y recibe lecturas, con o sin red. El
+  // watchdog de RutaScreen lo compara con el reloj: si se queda viejo, el
+  // sistema mató/congeló el servicio y hay que reiniciar el tracking (la causa
+  // del "Sin señal · hace 48m" con el chofer activo y el teléfono encendido).
+  try { await AsyncStorage.setItem('gps.ultimoTick', new Date().toISOString()) } catch {}
   const locations = data?.locations
   if (!locations?.length || !supabase) return
 
