@@ -696,6 +696,10 @@ export default function RutaScreen({ navigation }) {
               const enProceso = accionando === parada.id
               const activa    = ruta.estado === 'en_ruta'
               const tieneUbic = !!(cliente?.lat && cliente?.lng)
+              // Cantidad de ESTE despacho (capturada en la parada); si no se
+              // capturó, la habitual del cliente. Unidad de la empresa.
+              const cantidad  = parada.cantidad != null ? parada.cantidad : cliente?.pedido_kg
+              const unidad    = entregaCfg.unidad_medida || 'kg'
 
               return (
                 <View key={parada.id} style={[st.paradaCard, { borderLeftColor: meta.acento }]}>
@@ -722,8 +726,8 @@ export default function RutaScreen({ navigation }) {
                           <Ionicons name={tipoPar.icon} size={12} color={tipoPar.color} />
                           <Text style={[st.tipoBadgeTxt, { color: tipoPar.color }]}>{tipoPar.label}</Text>
                         </View>
-                        {cliente?.pedido_kg > 0 ? (
-                          <View style={st.tagChip}><Text style={st.tagTxt}>{cliente.pedido_kg} kg</Text></View>
+                        {cantidad > 0 ? (
+                          <View style={st.tagChip}><Text style={st.tagTxt}>{cantidad} {unidad}</Text></View>
                         ) : null}
                         {cliente?.zona ? (
                           <View style={st.tagChip}><Text style={st.tagTxt}>{cliente.zona}</Text></View>
