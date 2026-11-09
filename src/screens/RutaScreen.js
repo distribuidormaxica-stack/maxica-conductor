@@ -40,6 +40,7 @@ const ESTADO = {
 
 // ─── tipo de parada ─────────────────────────────────────────────────────────
 const TIPO_PARADA = {
+  cobranza:         { label: 'Cobranza', color: '#059669',      icon: 'cash-outline' },
   entrega:          { label: 'Entrega',  color: colors.primary, icon: 'cube-outline' },
   recogida:         { label: 'Recogida', color: '#7C3AED',      icon: 'arrow-up-circle-outline' },
   entrega_recogida: { label: 'E + R',    color: '#0891B2',      icon: 'swap-horizontal' },
